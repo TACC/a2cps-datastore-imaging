@@ -2,7 +2,7 @@
 # Ignore local data again once API turned on
 src/data/group_bold.csv
 src/data/archive/
-
+.env
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
