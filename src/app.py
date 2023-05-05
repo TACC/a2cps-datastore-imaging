@@ -487,6 +487,8 @@ def create_content(source, data_date, sites):
 def serve_layout():
     # raw_data_dictionary = serve_raw_data_store(data_url_root, DATA_PATH, DATA_SOURCE)
     # try: #load data from api
+    print('serving layout')
+    print(DATASTORE_URL)
     raw_data_dictionary = load_imaging_api(DATASTORE_URL)
     source ='api'
     # except:
