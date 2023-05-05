@@ -6,7 +6,9 @@ import traceback
 # ---------------------------------
 #   MOVE THIS TO REFERENCE FROM ENV
 # ---------------------------------
-DATASTORE_URL =  os.getenv('DATASTORE_URL')
+DATASTORE_URL = os.environ.get("DATASTORE_URL","url not found")
+DATASTORE_URL = os.path.join(DATASTORE_URL, "api/")
+
 
 # ---------------------------------
 #   Get Data From datastore
