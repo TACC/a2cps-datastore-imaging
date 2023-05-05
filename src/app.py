@@ -319,6 +319,7 @@ def get_filtered_data_store(raw_data_store, filter_type=None, start_date: dateti
 
 def load_imaging_api(api_url):
     api_address = api_url + 'imaging'
+    print(api_address)
     api_json = get_api_data(api_address)
     data_date = api_json['date']
     imaging = api_json['data']['imaging']
