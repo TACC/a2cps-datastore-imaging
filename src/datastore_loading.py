@@ -1,4 +1,5 @@
 import os
+import flask
 import requests
 import json
 import traceback
@@ -18,7 +19,7 @@ def get_api_data(api_address):
     api_json = {}
     try:
         try:
-            response = requests.get(api_address)
+            response = requests.get(api_address, cookies=flask.request.cookies)
         except:
             return('error: {}'.format(e))
         request_status = response.status_code
