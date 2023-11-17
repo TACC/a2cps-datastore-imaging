@@ -1,34 +1,33 @@
 import os
+import json
 import flask
 import requests
-import json
-import traceback
+import logging
 
 # ---------------------------------
 #   MOVE THIS TO REFERENCE FROM ENV
 # ---------------------------------
 DATASTORE_URL = os.environ.get("DATASTORE_URL","url not found")
 DATASTORE_URL = os.path.join(DATASTORE_URL, "api/")
-
+logger  = logging.getLogger("imaging_app")
 
 # ---------------------------------
 #   Get Data From datastore
 # ---------------------------------
 
-def get_api_data(api_address):
+class PortalAuthException(Exception):
+    '''Custom Exception for issues with Authentication'''
+
+def get_api_data(api_address, ignore_cache=False):
     api_json = {}
     try:
-        try:
-            response = requests.get(api_address, cookies=flask.request.cookies)
-        except:
-            return('error: {}'.format(e))
-        request_status = response.status_code
-        if request_status == 200:
-            api_json = response.json()
-            return api_json
-        else:
-            return request_status
+        params = {}
+        if ignore_cache:
+            params = {'ignore_cache':True}
+        response = requests.get(api_address, params=params, cookies=flask.request.cookies)
+        response.raise_for_status()
+        return response.json()
     except Exception as e:
-        traceback.print_exc()
+        logger.warn(e)
         api_json['json'] = 'error: {}'.format(e)
         return api_json

@@ -76,6 +76,10 @@ app = Dash(__name__,
                 requests_pathname_prefix=REQUESTS_PATHNAME_PREFIX,
                 suppress_callback_exceptions=True
                 )
+gunicorn_logger = logging.getLogger('gunicorn.error')
+app.logger = logging.getLogger("imaging_ui")
+app.logger.handlers = gunicorn_logger.handlers
+app.logger.setLevel(logging.INFO)
 
 # ----------------------------------------------------------------------------
 # DASH HTML COMPONENTS
@@ -319,8 +323,19 @@ def get_filtered_data_store(raw_data_store, filter_type=None, start_date: dateti
 
 def load_imaging_api(api_url):
     api_address = api_url + 'imaging'
-    print(api_address)
+    app.logger.info('Requesting data from api {0}'.format(api_address))
     api_json = get_api_data(api_address)
+    if 'error' in api_json:
+        app.logger.info('Error response from datastore: {0}'.format(api_json))
+        if 'error_code' in api_json:
+            error_code = api_json['error_code']
+            if error_code in ('MISSING_SESSION_ID', 'INVALID_TAPIS_TOKEN'):
+                raise PortalAuthException
+
+    if 'date' not in api_json or 'imaging' not in api_json['data'] or 'qc' not in api_json['data']:
+        app.logger.info('Requesting data from api {0} to ignore cache.'.format(api_address))
+        api_json = get_api_data(api_address, True)
+
     data_date = api_json['date']
     imaging = api_json['data']['imaging']
     qc = api_json['data']['qc']
@@ -485,26 +500,32 @@ def create_content(source, data_date, sites):
     return content
 
 def serve_layout():
-    # raw_data_dictionary = serve_raw_data_store(data_url_root, DATA_PATH, DATA_SOURCE)
-    # try: #load data from api
-    print('serving layout')
-    print(DATASTORE_URL)
-    raw_data_dictionary = load_imaging_api(DATASTORE_URL)
-    source ='api'
-    # except:
-    #     imaging, qc = load_local_data(DATA_PATH)
-    #     raw_data_dictionary = local_data_as_dict(imaging, qc, LOCAL_DATA_DATE)
-    #     source = 'local'
-    # try:
-    page_layout =  html.Div([
-    # change to 'url' before deploy
-            # serve_data_stores('url'),
-            create_data_stores(source, raw_data_dictionary),
-            ], className='delay')
+    try:
+        # raw_data_dictionary = serve_raw_data_store(data_url_root, DATA_PATH, DATA_SOURCE)
+        # try: #load data from api
+        app.logger.info('serving layout using datastore: {0}'.format(DATASTORE_URL))
+        raw_data_dictionary = load_imaging_api(DATASTORE_URL)
+        source ='api'
+        # except:
+        #     imaging, qc = load_local_data(DATA_PATH)
+        #     raw_data_dictionary = local_data_as_dict(imaging, qc, LOCAL_DATA_DATE)
+        #     source = 'local'
+        # try:
+        page_layout =  html.Div([
+        # change to 'url' before deploy
+                # serve_data_stores('url'),
+                create_data_stores(source, raw_data_dictionary),
+                ], className='delay')
 
-    # except:
-    #     page_layout = html.Div(['There has been a problem accessing the data for this application.'])
-    return page_layout
+        # except:
+        #     page_layout = html.Div(['There has been a problem accessing the data for this application.'])
+        return page_layout
+    except PortalAuthException:
+        app.logger.warn('Auth error from datastore, asking user to authenticate')
+        return html.Div([html.H4('Please login and authenticate on the portal to access the report.')])
+    except Exception as ex:
+        app.logger.warn('Exception serving layout {0}'.format(ex))
+        return html.Div([html.H4('Error processing report data')])
 
 app.layout = serve_layout
 
