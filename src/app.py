@@ -22,8 +22,8 @@ import logging
 bar_chart_options = {'None':'None', 'MCC':'mcc', 'Site':'site','Visit':'ses','Scan':'scan'}
 
 # Set Version date
-version_msg = 'Version Date: 09/21/22'
-LOCAL_DATA_DATE = '07/19/2022'
+version_msg = 'Version Date: 04/22/24'
+LOCAL_DATA_DATE = '04/22/24'
 
 # Load local / asset data
 sites_filepath = os.path.join(DATA_PATH,'sites.csv')
@@ -467,16 +467,17 @@ def create_content(source, data_date, sites):
                             dbc.Col([
                                 dcc.Dropdown(
                                     id='dropdown-sites',
-                                    options=[  #'UI', 'UC', 'NS', 'N/A', 'UM', 'WS'
+                                    options=[  #'UI', 'UC', 'NS', 'N/A', 'UM', 'WS', 'RU'
                                         {'label': 'All Sites', 'value': (',').join(sites)},
-                                        {'label': 'MCC1', 'value': 'UI,UC,NS'},
+                                        {'label': 'MCC1', 'value': 'UI,UC,NS,RU'},
                                         {'label': 'MCC2', 'value': 'UM,WS,SH' },
                                         {'label': 'MCC1: University of Illinois at Chicago', 'value': 'UI' },
                                         {'label': 'MCC1: University of Chicago', 'value': 'UC' },
-                                        {'label': 'MCC1: NorthShore', 'value': 'NS' },
+                                        {'label': 'MCC1: Endeavor Health', 'value': 'NS' },
+                                        {'label': 'MCC1: Rush', 'value': 'RU' },
                                         {'label': 'MCC2: University of Michigan', 'value': 'UM' },
-                                        {'label': 'MCC2: Wayne State University (pending)', 'value': 'WS' },
-                                        {'label': 'MCC2: Spectrum Health (pending)', 'value': 'SH' }
+                                        {'label': 'MCC2: Wayne State University', 'value': 'WS' },
+                                        {'label': 'MCC2: Corewell Health', 'value': 'SH' }
                                     ],
                                     # value = 'NS'
                                     multi=False,
