@@ -216,21 +216,22 @@ def build_boxplot(df):
     fig=go.Figure()
 
     data_length = (len(df['site'].unique()))
+    df['Cuff1 Applied Pressure'] = df['Cuff1 Applied Pressure'].apply(pd.to_numeric, errors='coerce')
 
     for i, visit in enumerate(df['visit'].unique()):
         df_plot=df[df['visit']==visit]
-        #print(df_plot.head())
 
-        fig.add_trace(go.Box(x=df_plot['site'],
-                             y=df_plot['Cuff1 Applied Pressure'],
-                             meta = visit,
-#                              boxmean="sd",
-                             line=dict(color=px.colors.qualitative.Plotly[i]),
-                             boxpoints='suspectedoutliers',
-                             name=visit,
-                             offsetgroup=visit,
-                            ))
-
+        if len(df_plot) >0: 
+            fig.add_trace(go.Box(x=df_plot['site'],
+                                y=df_plot['Cuff1 Applied Pressure'],
+                                meta = visit,
+    #                              boxmean="sd",
+                                line=dict(color=px.colors.qualitative.Plotly[i]),
+                                boxpoints='suspectedoutliers',
+                                name=visit,
+                                offsetgroup=visit,
+                                ))
+        
 
         ## loop through the values you want to label and add them as annotations
     for i, visit in enumerate(df['visit'].unique()):
@@ -741,15 +742,15 @@ def update_discrepancies_section(data):
 )
 def update_cuff_section(data):
     # Load imaging data from data store
-     imaging = pd.DataFrame.from_dict(data['imaging'])
-     fig = build_boxplot(imaging)
-     cuff_div = html.Div([
+    imaging = pd.DataFrame.from_dict(data['imaging'])
+    fig = build_boxplot(imaging)
+    cuff_div = html.Div([
              dbc.Col([
                  html.H3("Cuff1 Applied Pressure"),
                  dcc.Graph(id='boxplot_cuff1', figure=fig)
              ]),
      ])
-     return cuff_div
+    return cuff_div
 
 @app.callback(
     Output('graph_stackedbar_div', 'children'),
