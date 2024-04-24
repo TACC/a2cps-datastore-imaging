@@ -22,8 +22,8 @@ import logging
 bar_chart_options = {'None':'None', 'MCC':'mcc', 'Site':'site','Visit':'ses','Scan':'scan'}
 
 # Set Version date
-version_msg = 'Version Date: 09/21/22'
-LOCAL_DATA_DATE = '07/19/2022'
+version_msg = 'Version Date: 04/22/24'
+LOCAL_DATA_DATE = '04/22/24'
 
 # Load local / asset data
 sites_filepath = os.path.join(DATA_PATH,'sites.csv')
@@ -216,21 +216,22 @@ def build_boxplot(df):
     fig=go.Figure()
 
     data_length = (len(df['site'].unique()))
+    df['Cuff1 Applied Pressure'] = df['Cuff1 Applied Pressure'].apply(pd.to_numeric, errors='coerce')
 
     for i, visit in enumerate(df['visit'].unique()):
         df_plot=df[df['visit']==visit]
-        #print(df_plot.head())
 
-        fig.add_trace(go.Box(x=df_plot['site'],
-                             y=df_plot['Cuff1 Applied Pressure'],
-                             meta = visit,
-#                              boxmean="sd",
-                             line=dict(color=px.colors.qualitative.Plotly[i]),
-                             boxpoints='suspectedoutliers',
-                             name=visit,
-                             offsetgroup=visit,
-                            ))
-
+        if len(df_plot) >0: 
+            fig.add_trace(go.Box(x=df_plot['site'],
+                                y=df_plot['Cuff1 Applied Pressure'],
+                                meta = visit,
+    #                              boxmean="sd",
+                                line=dict(color=px.colors.qualitative.Plotly[i]),
+                                boxpoints='suspectedoutliers',
+                                name=visit,
+                                offsetgroup=visit,
+                                ))
+        
 
         ## loop through the values you want to label and add them as annotations
     for i, visit in enumerate(df['visit'].unique()):
@@ -467,16 +468,17 @@ def create_content(source, data_date, sites):
                             dbc.Col([
                                 dcc.Dropdown(
                                     id='dropdown-sites',
-                                    options=[  #'UI', 'UC', 'NS', 'N/A', 'UM', 'WS'
+                                    options=[  #'UI', 'UC', 'NS', 'N/A', 'UM', 'WS', 'RU'
                                         {'label': 'All Sites', 'value': (',').join(sites)},
-                                        {'label': 'MCC1', 'value': 'UI,UC,NS'},
+                                        {'label': 'MCC1', 'value': 'UI,UC,NS,RU'},
                                         {'label': 'MCC2', 'value': 'UM,WS,SH' },
                                         {'label': 'MCC1: University of Illinois at Chicago', 'value': 'UI' },
                                         {'label': 'MCC1: University of Chicago', 'value': 'UC' },
-                                        {'label': 'MCC1: NorthShore', 'value': 'NS' },
+                                        {'label': 'MCC1: Endeavor Health', 'value': 'NS' },
+                                        {'label': 'MCC1: Rush', 'value': 'RU' },
                                         {'label': 'MCC2: University of Michigan', 'value': 'UM' },
-                                        {'label': 'MCC2: Wayne State University (pending)', 'value': 'WS' },
-                                        {'label': 'MCC2: Spectrum Health (pending)', 'value': 'SH' }
+                                        {'label': 'MCC2: Wayne State University', 'value': 'WS' },
+                                        {'label': 'MCC2: Corewell Health', 'value': 'SH' }
                                     ],
                                     # value = 'NS'
                                     multi=False,
@@ -740,15 +742,15 @@ def update_discrepancies_section(data):
 )
 def update_cuff_section(data):
     # Load imaging data from data store
-     imaging = pd.DataFrame.from_dict(data['imaging'])
-     fig = build_boxplot(imaging)
-     cuff_div = html.Div([
+    imaging = pd.DataFrame.from_dict(data['imaging'])
+    fig = build_boxplot(imaging)
+    cuff_div = html.Div([
              dbc.Col([
                  html.H3("Cuff1 Applied Pressure"),
                  dcc.Graph(id='boxplot_cuff1', figure=fig)
              ]),
      ])
-     return cuff_div
+    return cuff_div
 
 @app.callback(
     Output('graph_stackedbar_div', 'children'),
@@ -863,7 +865,7 @@ def update_heatmap(sites, data):
     if len(sites_list) == 1:
         df  = get_heat_matrix_df(qc, sites, color_mapping_list)
         if not df.empty:
-            fig_heatmap = generate_heat_matrix(df, color_mapping_list)
+            fig_heatmap = generate_heat_matrix(df.T, color_mapping_list) # transpose df to generate horizontal graph
             heatmap = html.Div([
                 dcc.Graph(id='graph_heatmap', figure=fig_heatmap)
             ])
