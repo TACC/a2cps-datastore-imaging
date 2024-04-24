@@ -865,7 +865,7 @@ def update_heatmap(sites, data):
     if len(sites_list) == 1:
         df  = get_heat_matrix_df(qc, sites, color_mapping_list)
         if not df.empty:
-            fig_heatmap = generate_heat_matrix(df, color_mapping_list)
+            fig_heatmap = generate_heat_matrix(df.T, color_mapping_list) # transpose df to generate horizontal graph
             heatmap = html.Div([
                 dcc.Graph(id='graph_heatmap', figure=fig_heatmap)
             ])
