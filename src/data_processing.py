@@ -196,14 +196,15 @@ def get_heat_matrix_df(qc, site, color_mapping_list):
     q = qc[(qc.site == site)][qc_cols]
     if len(q) >0:
         q['sub'] = q['sub'].astype(str)
+        # Convert color designation to appropriate numeric value on the colorscale
         q2 = q.merge(color_mapping_df, how='left', left_on='rating', right_on='color')
         q3 = q2.sort_values(['sub','ses','scan']).drop_duplicates(['sub','ses','scan'],keep='last')
         q3['Scan'] = q3['ses'] + '-' + q3['scan']
-        q3_matrix = q3.pivot(index='sub', columns = 'Scan', values = 'value').fillna(0)
-        q3_matrix_cols = ['V1-T1', 'V1-CUFF1', 'V1-CUFF2', 'V1-REST1', 'V1-REST2',
-                 'V3-T1', 'V3-CUFF1', 'V3-CUFF2', 'V3-REST1', 'V3-REST2']
-        matrix_df = q3_matrix[q3_matrix_cols]
+        matrix_df = q3.pivot(index='sub', columns = 'Scan', values = 'value').fillna(0)
+
+        # insert column to create grey border line in graph
         matrix_df.insert(5, "", [0.1] * len(matrix_df))
+        # flatten table index
         matrix_df.columns.name = None
         matrix_df.index.name = None
     else:

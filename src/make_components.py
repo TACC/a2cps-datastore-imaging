@@ -132,8 +132,8 @@ def datatable_settings_multiindex(df, flatten_char = '_'):
 def generate_heat_matrix(df, colors):
     cut = len(df)
     fig = px.imshow(
-            df.T,
-            # height=cut*55,
+            df,
+            # height=250px,
             color_continuous_scale = colors,
             contrast_rescaling =  'infer'
     )
