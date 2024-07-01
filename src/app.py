@@ -18,6 +18,11 @@ from styling import *
 
 import logging
 
+# Tab text content
+tab_text_url = "https://raw.githubusercontent.com/TACC/a2cps-datastore-imaging/latest/src/assets/tab_text.json"
+resp = requests.get(tab_text_url)
+tab_text = json.loads(resp.text)
+
 # Bar Chart options
 bar_chart_options = {'None':'None', 'MCC':'mcc', 'Site':'site','Visit':'ses','Scan':'scan'}
 
@@ -81,34 +86,6 @@ app.logger = logging.getLogger("imaging_ui")
 app.logger.handlers = gunicorn_logger.handlers
 app.logger.setLevel(logging.INFO)
 
-# ----------------------------------------------------------------------------
-# DASH HTML COMPONENTS
-# ----------------------------------------------------------------------------
-
-offcanvas_content = html.Div([
-    html.Div([
-        html.P([' '], style={'background-color':'ForestGreen', 'height': '20px', 'width':'20px','float':'left'}),
-        html.P(['no known issues'], style={'padding-left': '30px', 'margin': '0px'})
-    ]),
-    html.Div([
-        html.P([' '], style={'background-color':'Gold', 'height': '20px', 'width':'20px','float':'left', 'clear':'both'}),
-        html.P(['minor variations/issues; correctable'], style={'padding-left': '30px', 'margin': '0px'})
-    ]),
-    html.Div([
-        html.P([' '], style={'background-color':'FireBrick', 'height': '20px', 'width':'20px','float':'left', 'clear':'both'}),
-        html.P(['significant variations/issues; not expected to be comparable'], style={'padding-left': '30px', 'margin': '0px'})
-    ]),
-])
-
-offcanvas = html.Div([
-    dbc.Button("Legend", id="open-offcanvas", n_clicks=0),
-    dbc.Offcanvas(
-        offcanvas_content,
-        id="offcanvas",
-        title="Title",
-        is_open=False,
-    ),
-])
 
 # ----------------------------------------------------------------------------
 # DASH APP COMPONENT FUNCTIONS
@@ -562,50 +539,55 @@ def switch_tab(at):
                     id="loading-overview",
                     children=[
                         html.Div([
-            dbc.Row([
-                dbc.Col([
-                    html.H3('Scan sessions for pre-surgery (V1) and 3 month post surgery (V3) visits'),
-                    html.Div(id='overview_div')
-                ])
-            ]),
-            dbc.Row([
-                dbc.Col([html.H3('Quality ratings for individual scans (up to six scans per session: T1, DWI, REST1, CUFF1, CUFF2, REST2)')]),
-            ]),
-            dbc.Row([
-                dbc.Col([
-                    html.Div(id='graph_stackedbar_div')
-                    ], width=10),
-                dbc.Col([
-                    html.H3('Bar Chart Settings'),
-                    html.Label('Chart Type'),
-                    daq.ToggleSwitch(
-                            id='toggle_stackedbar',
-                            label=['Count','Stacked Percent'],
-                            value=False
-                        ),
-                    html.Label('Separate by Visit'),
-                    daq.ToggleSwitch(
-                            id='toggle_visit',
-                            label=['Combined','Split'],
-                            value=False
-                        ),
+                            dbc.Row([
+                                dbc.Col([
+                                    dcc.Markdown(tab_text['overview']['text'])
+                                ])
+                            ]),
+                            dbc.Row([
+                                dbc.Col([
+                                    html.H3('Scan sessions for pre-surgery (V1) and 3 month post surgery (V3) visits'),
+                                    html.Div(id='overview_div')
+                                ])
+                            ]),
+                            dbc.Row([
+                                dbc.Col([html.H3('Quality ratings for individual scans (up to six scans per session: T1, DWI, REST1, CUFF1, CUFF2, REST2)')]),
+                            ]),
+                            dbc.Row([
+                                dbc.Col([
+                                    html.Div(id='graph_stackedbar_div')
+                                    ], width=10),
+                                dbc.Col([
+                                    html.H3('Bar Chart Settings'),
+                                    html.Label('Chart Type'),
+                                    daq.ToggleSwitch(
+                                            id='toggle_stackedbar',
+                                            label=['Count','Stacked Percent'],
+                                            value=False
+                                        ),
+                                    html.Label('Separate by Visit'),
+                                    daq.ToggleSwitch(
+                                            id='toggle_visit',
+                                            label=['Combined','Split'],
+                                            value=False
+                                        ),
 
-                    html.Label('Chart Selection'),
-                    dcc.Dropdown(
-                        id='dropdown-bar',
-                       options=[
-                           {'label': ' Site and MCC', 'value': 1},
-                           {'label': ' Site', 'value': 2},
-                           {'label': ' MCC', 'value': 3},
-                           {'label': ' Combined', 'value': 4},
-                       ],
-                       multi=False,
-                       clearable=False,
-                       value=1
-                    ),
-                    ],width=2),
-                ]),
-        ])
+                                    html.Label('Chart Selection'),
+                                    dcc.Dropdown(
+                                        id='dropdown-bar',
+                                    options=[
+                                        {'label': ' Site and MCC', 'value': 1},
+                                        {'label': ' Site', 'value': 2},
+                                        {'label': ' MCC', 'value': 3},
+                                        {'label': ' Combined', 'value': 4},
+                                    ],
+                                    multi=False,
+                                    clearable=False,
+                                    value=1
+                                    ),
+                                    ],width=2),
+                                ]),
+                        ])
                     ],
                     type="circle",
                 )
@@ -616,10 +598,16 @@ def switch_tab(at):
                     id="loading-discrepancies",
                     children=[
                         html.Div([
-            dbc.Row([
-                dbc.Col([html.Div(id='discrepancies_section')])
-            ]),
-        ])
+                            dbc.Row([
+                                dbc.Col([
+                                    dcc.Markdown(tab_text['discrepancies']['text'])
+                                ])
+                            ]),
+
+                            dbc.Row([
+                                dbc.Col([html.Div(id='discrepancies_section')])
+                            ]),
+                        ])
                     ],
                     type="circle",
                 )
@@ -629,6 +617,7 @@ def switch_tab(at):
                     id="loading-completions",
                     children=[
                         html.Div([
+                            html.Div( dcc.Markdown(tab_text['completions']['text'])),
                             html.Div(id='completions_section')
                         ])
                     ],
@@ -639,6 +628,7 @@ def switch_tab(at):
         pies = dcc.Loading(
                     id="loading-pie",
                     children=[
+                        html.Div( dcc.Markdown(tab_text['pie']['text'])),
                         html.Div(id='pie_charts')
                         ],
                     type="circle",
@@ -651,6 +641,8 @@ def switch_tab(at):
         cuff = dcc.Loading(
                     id="loading-heatmap",
                     children=[
+                        
+                        html.Div( dcc.Markdown(tab_text['cuff']['text'])),
                         html.Div([
                             dbc.Row([
                                 dbc.Col([html.Div(id='cuff_section')])
@@ -867,6 +859,7 @@ def update_heatmap(sites, data):
         if not df.empty:
             fig_heatmap = generate_heat_matrix(df.T, color_mapping_list) # transpose df to generate horizontal graph
             heatmap = html.Div([
+                html.Div( dcc.Markdown(tab_text['heatmap']['text'])),
                 dcc.Graph(id='graph_heatmap', figure=fig_heatmap)
             ])
         else:
