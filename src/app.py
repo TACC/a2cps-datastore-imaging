@@ -721,14 +721,6 @@ def update_discrepancies_section(data):
                     sort_mode="multi",
                     )
 
-     rescinded_table = dt.DataTable(
-                    id='tbl-rescinded', data=rescinded_imaging.to_dict('records'),
-                    columns=[{"name": i, "id": i} for i in rescinded_imaging.columns],
-                    filter_action="native",
-                    sort_action="native",
-                    sort_mode="multi",
-                    )
-
 
      discrepancies_div = html.Div([
              dbc.Col([
@@ -738,10 +730,6 @@ def update_discrepancies_section(data):
            dbc.Col([
                html.H3('Records with mismatch between indicated and received'),
                mismatch_table
-           ],width=6),
-           dbc.Col([
-               html.H3(rescind_msg),
-               rescinded_table
            ],width=6),
      ])
      return discrepancies_div
