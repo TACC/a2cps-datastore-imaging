@@ -1,20 +1,23 @@
 {
+    "template": {
+        "text": "Add Markdown text. \n Use newline to break."
+    },
     "overview":{
-        "text": "# Add text  \n treat this as Markdown"
+        "text": "Click each tab to load a different report page.\n Refresh the page if needed to get the latest nightly update."
     },
     "discrepancies":{
-        "text": "# Add text  \n treat this as Markdown"
+        "text": "These are cases that are flagged for attention; note that in some cases BIDS conversion may be in progress."
     },
     "completions":{
-        "text": "# Add text  \n treat this as Markdown"
+        "text": "This panel shows completion rates of individual scans (top) and combinations of scans (bottom)."
     },
     "pie":{
-        "text": "# Add text  \n treat this as Markdown"
+        "text": "The graphs here show quality levels across sites and scans."
     },
-    "heart_map":{
-        "text": "# Add text  \n treat this as Markdown"
+    "heatmap":{
+        "text": "This scan-level overview is currently being overhauled."
     },
     "cuff":{
-        "text": "# Add text  \n treat this as Markdown"
+        "text": "This panel shows the individually determined inflatable cuff pressure used in each Cuff1 fMRI scan.\n Note that Cuff2 uses a standard pressure level (120 mmHg)."
     }
 }

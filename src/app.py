@@ -18,10 +18,6 @@ from styling import *
 
 import logging
 
-# Tab text content
-tab_text_url = "https://raw.githubusercontent.com/TACC/a2cps-datastore-imaging/latest/src/assets/tab_text.json"
-resp = requests.get(tab_text_url)
-tab_text = json.loads(resp.text)
 
 # Bar Chart options
 bar_chart_options = {'None':'None', 'MCC':'mcc', 'Site':'site','Visit':'ses','Scan':'scan'}
@@ -248,6 +244,24 @@ def build_boxplot(df):
 # ----------------------------------------------------------------------------
 # DASH APP LAYOUT FUNCTION
 # ----------------------------------------------------------------------------
+def load_tab_text():
+    """ 
+    Load content to display in the markdown component of the tabs from the 'tab_text' file in the github repo. 
+    If this isn't accessible, load from a local file.
+    """
+    try:
+        # try to load from github url
+        tab_text_url = "https://raw.githubusercontent.com/TACC/a2cps-datastore-imaging/latest/src/assets/tab_text.json"
+        resp = requests.get(tab_text_url)
+        tab_text = json.loads(resp.text)
+    except:
+        # load from local json file if github url fails
+        tab_text_path = "assets/tab_text.json"
+        with open(tab_text_path) as f:
+            tab_text = json.load(f)
+    print(tab_text)
+    return tab_text
+
 def load_data_source(url_data_path, local_data_path, source):
     imaging, imaging_source = load_imaging(url_data_path, local_data_path, source)
     qc, qc_source = load_qc(url_data_path, local_data_path, source)
@@ -362,10 +376,12 @@ def serve_raw_data_store(url_data_path, local_data_path, source):
     return raw_data_dictionary
 
 def create_data_stores(source, raw_data_dictionary):
+    tab_text = load_tab_text()
     sites = raw_data_dictionary['sites']
     data_date = raw_data_dictionary['date']
     data_stores = html.Div([
         dcc.Store(id='session_data',  data = raw_data_dictionary), #storage_type='session',
+        dcc.Store(id='tab_text', data=tab_text),
         dcc.Store(id='report_data'),
         dcc.Store(id='filtered_data'),
         # html.P('Imaging Source: ' + data_dictionary['imaging_source']),
@@ -532,8 +548,10 @@ def see_filtering(filtered_data):
 
 @app.callback(Output("tab-content", "children"),
     Output('dropdown-sites-col','style'),
-    Input("tabs", "active_tab"))
-def switch_tab(at):
+    Input("tabs", "active_tab"),
+    State("tab_text","data")
+    )    
+def switch_tab(at, tab_text):
     if at == "tab-overview":
         overview = dcc.Loading(
                     id="loading-overview",
