@@ -59,7 +59,7 @@ def calculate_overdue(BIDS, visit, surgery_week):
         overdue='No'
     return overdue
 
-def get_indicated_received(imaging_dataframe, validation_column = 'bids_validation', validation_value = 1):
+def get_indicated_received(imaging_dataframe, validation_column = 'bids', validation_value = 1):
     """The get_indicated_received(imaging_dataframe) function takes the imaging log data frame and lengthens the
     table to convert the scan into a variable while preserving columns for the indicated and received value of each scan.
     Validation columns parameter should be a lits of tuples where the first tuple value is the column name and the
@@ -68,7 +68,7 @@ def get_indicated_received(imaging_dataframe, validation_column = 'bids_validati
 
     # Select columns, and create long dataframes from those columns, pivoting the scan into a variable
     # Select and pivot indicated columns
-    index_cols = ['site','subject_id','visit','acquisition_week','Surgery Week','bids_validation', 'dicom']
+    index_cols = ['site','subject_id','visit','acquisition_week','Surgery Week','bids', 'dicom']
     index_new = ['Site', 'Subject', 'Visit','Acquisition Week','Surgery Week', 'BIDS','DICOM']
 
     indicated_cols = ['T1 Indicated',
