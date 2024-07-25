@@ -272,9 +272,10 @@ def get_processed_data(imaging, qc):
     completions = get_completions(imaging)
     imaging_overview = roll_up(imaging)
     indicated_received = get_indicated_received(imaging)
+    print(indicated_received.columns)
     ratings = indicated_received.merge(qc, how='outer', left_on = ['Site','Subject','Visit','Scan'], right_on=['site','sub','ses','scan']).fillna('N/A')
 
-    stacked_bar_df = get_stacked_bar_data(qc, 'sub', 'rating', ['site','ses'])
+    # stacked_bar_df = get_stacked_bar_data(qc, 'sub', 'rating', ['site','ses'])
     sites = list(imaging.site.unique())
 
     processed_data_dictionary = {
@@ -297,7 +298,7 @@ def get_filtered_data_store(raw_data_store, filter_type=None, start_date: dateti
         completions = pd.DataFrame()
         imaging_overview =  pd.DataFrame()
         indicated_received =  pd.DataFrame()
-        stacked_bar_df =  pd.DataFrame()
+        # stacked_bar_df =  pd.DataFrame()
         sites = []
     else:
         if filter_type:
@@ -694,7 +695,7 @@ def update_discrepancies_section(data):
 
      # Rescinded patients in imaging
      cols = ['site', 'subject_id', 'visit',  'dicom',
-       'bids', 'bids_validation', 'acquisition_week', 'Surgery Week']
+       'bids', 'acquisition_week', 'Surgery Week']
      rescinded_imaging = imaging[imaging['subject_id'].isin(list(rescinded['main_record_id']))][cols]
      rescind_msg = 'Subjects who rescinded prior to ' + rescinded_date + ' but have records in the imaging file'
 
