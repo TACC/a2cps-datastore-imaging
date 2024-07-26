@@ -15,6 +15,61 @@ from config_settings import *
 
 
 # ----------------------------------------------------------------------------
+# Imaging Data Cleanup
+# ----------------------------------------------------------------------------
+
+def clean_imaging(imaging_full):
+    ''' Clean up the incoming imaging dataframe'''
+    # Imaging columns actually used.  Subset to just these portion of the data. 
+    # Dictionary keys = columns used, dictionary value = new column name
+    imaging_columns_dict = {
+        'site': 'site',
+        'subject_id': 'subject_id',
+        'visit': 'visit',
+        'acquisition_week': 'acquisition_week',
+        'Surgery Week':'Surgery Week',
+        'bids':'bids',
+        'dicom':'dicom', 
+        'T1 Indicated':'T1',
+        'DWI Indicated':'DWI',
+        '1st Resting State Indicated':'REST1',
+        'fMRI Individualized Pressure Indicated':'CUFF1',
+        'fMRI Standard Pressure Indicated':'CUFF2',
+        '2nd Resting State Indicated':'REST2',
+        'T1 Received':'T1 Received',
+        'DWI Received':'DWI Received',
+        '1st Resting State Received':'REST1 Received',
+        'fMRI Individualized Pressure Received':'CUFF1 Received',
+        'fMRI Standard Pressure Received':'CUFF2 Received',
+        '2nd Resting State Received':'REST2 Received',
+        'Cuff1 Applied Pressure':'Cuff1 Applied Pressure'
+}
+    
+    imaging_cols = list(imaging_columns_dict.keys()) # Get list of columns to keep
+    imaging = imaging_full[imaging_cols].copy() # Copy subset of imaging dataframe
+    imaging.rename(columns=imaging_columns_dict, inplace=True) # Rename columns
+    imaging = imaging.replace('na', np.nan) # Replace 'na' string with actual null value
+    imaging['completions_id'] = imaging.apply(lambda x: str(x['subject_id']) + x['visit'],axis=1) # Add completions id value from combination of subject ID and visit
+    
+    return imaging
+
+def clean_qc(qc_full):
+    ''' Clean up the incoming qc dataframe'''
+    qc_columns_dict = {
+            'site':'site', 
+            'sub': 'subject_id',
+            'ses': 'ses',
+            'scan':'scan',
+            'rating': 'rating'
+        }
+    qc_cols = list(qc_columns_dict.keys()) # Get list of columns to keep
+    qc = qc_full[qc_cols].copy() # Copy subset of imaging dataframe
+    qc.rename(columns=qc_columns_dict, inplace=True) # Rename columns
+    
+    return qc
+
+
+# ----------------------------------------------------------------------------
 # Filter by date
 # ----------------------------------------------------------------------------
 def filter_imaging_by_date(imaging_df, start_date: datetime = None, end_date = None):
@@ -64,45 +119,26 @@ def get_indicated_received(imaging_dataframe, validation_column = 'bids', valida
     table to convert the scan into a variable while preserving columns for the indicated and received value of each scan.
     Validation columns parameter should be a lits of tuples where the first tuple value is the column name and the
     second entry is the value of 'Y' for that column"""
-    df = imaging_dataframe.copy()
+    df = clean_imaging(imaging_dataframe).copy()
 
     # Select columns, and create long dataframes from those columns, pivoting the scan into a variable
-    # Select and pivot indicated columns
     index_cols = ['site','subject_id','visit','acquisition_week','Surgery Week','bids', 'dicom']
     index_new = ['Site', 'Subject', 'Visit','Acquisition Week','Surgery Week', 'BIDS','DICOM']
 
-    indicated_cols = ['T1 Indicated',
-           'DWI Indicated',
-           'fMRI Individualized Pressure Indicated',
-           'fMRI Standard Pressure Indicated',
-           '1st Resting State Indicated',
-           '2nd Resting State Indicated']
-
-    received_cols = ['T1 Received',
-       'DWI Received',
-       'fMRI Individualized Pressure Received',
-       'fMRI Standard Pressure Received',
-       '1st Resting State Received',
-       '2nd Resting State Received']
-
-    scan_cols_short = ['T1','DWI','CUFF1','CUFF2','REST1','REST2']
+    # Select and pivot indicated columns
+    indicated_cols = ['T1', 'DWI', 'REST1', 'CUFF1', 'CUFF2', 'REST2']
 
     indicated = df[index_cols + indicated_cols]
-    indicated.columns = index_cols + scan_cols_short
-    indicated = pd.melt(indicated, id_vars=index_cols, value_vars = scan_cols_short)
+    indicated = pd.melt(indicated, id_vars=index_cols, value_vars = indicated_cols)
     indicated.columns = index_new + ['Scan', 'Value']
 
-    # Select and pivot received_cols columns
-    received_cols = ['T1 Received',
-       'DWI Received',
-       'fMRI Individualized Pressure Received',
-       'fMRI Standard Pressure Received',
-       '1st Resting State Received',
-       '2nd Resting State Received']
+    # Select and pivot received_cols columns, renaming the scans so they match
+    received_cols = ['T1 Received', 'DWI Received', 'REST1 Received', 'CUFF1 Received',
+           'CUFF2 Received', 'REST2 Received']
 
     received = df[index_cols + received_cols]
-    received.columns = index_cols + scan_cols_short
-    received = pd.melt(received, id_vars=index_cols, value_vars = scan_cols_short)
+    received.columns = index_cols + indicated_cols
+    received = pd.melt(received, id_vars=index_cols, value_vars = indicated_cols)
     received.columns = index_new + ['Scan', 'Value']
 
     # Merge the indicated and received dataframes into a single dataframe
@@ -116,7 +152,6 @@ def get_indicated_received(imaging_dataframe, validation_column = 'bids', valida
     combined['Overdue'] = combined.apply(lambda x: calculate_overdue(x['BIDS'], x['Visit'], x['Surgery Week']), axis=1)
 
     return combined
-
 
 
 # ----------------------------------------------------------------------------
