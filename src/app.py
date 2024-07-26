@@ -654,11 +654,23 @@ def switch_tab(at, tab_text):
                 )
         return pies, {'display': 'block'}
     elif at == "tab-heatmap":
-        heatmap = html.Div(id='heatmap')
+        heatmap = dcc.Loading(
+                    id="loading-heatmap",
+                    children=[
+                        
+                        html.Div( dcc.Markdown(tab_text['heatmap']['text'])),
+                        html.Div([
+                            dbc.Row([
+                                dbc.Col([html.Div(id='heatmap')])
+                            ]),
+                        ])
+                    ],
+                type="circle",
+            )
         return heatmap, {'display': 'block'}
     elif at == "tab-cuff":
         cuff = dcc.Loading(
-                    id="loading-heatmap",
+                    id="loading-cuff",
                     children=[
                         
                         html.Div( dcc.Markdown(tab_text['cuff']['text'])),
@@ -866,7 +878,6 @@ def update_heatmap(sites, data):
         if not df.empty:
             fig_heatmap = generate_heat_matrix(df.T, color_mapping_list) # transpose df to generate horizontal graph
             heatmap = html.Div([
-                html.Div( dcc.Markdown(tab_text['heatmap']['text'])),
                 dcc.Graph(id='graph_heatmap', figure=fig_heatmap)
             ])
         else:

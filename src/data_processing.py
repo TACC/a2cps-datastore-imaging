@@ -41,7 +41,8 @@ def clean_imaging(imaging_full):
         '1st Resting State Received':'REST1 Received',
         'fMRI Individualized Pressure Received':'CUFF1 Received',
         'fMRI Standard Pressure Received':'CUFF2 Received',
-        '2nd Resting State Received':'REST2 Received'
+        '2nd Resting State Received':'REST2 Received',
+        'Cuff1 Applied Pressure':'Cuff1 Applied Pressure'
 }
     
     imaging_cols = list(imaging_columns_dict.keys()) # Get list of columns to keep
