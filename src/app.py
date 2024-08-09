@@ -63,6 +63,40 @@ icols = list(scan_dict.keys())
 icols2 = list(scan_dict.values())
 
 color_mapping_list = [(0.0, 'white'),(0.1, 'lightgrey'),(0.25, 'red'),(0.5, 'orange'),(0.75, 'yellow'),(1.0, 'green')]
+# ---------------------------------
+#   Data ETL
+# ---------------------------------
+
+release1_ids = list(pd.read_csv('assets/DataFreeze_1_022823.csv').record_id)
+release2_ids = list(pd.read_csv('assets/DataFreeze_2_022924.csv').record_id)
+
+def relative_date(nDays):
+    today = datetime.today()
+    relativeDate = (today - pd.Timedelta(days=nDays)).date()
+    return relativeDate
+
+def filter_imaging_by_date(imaging_df, start_date = None, end_date = None):
+    '''Filter the imaging datatable using:
+    start_date: select imaging records acquired on or after this date
+    end_date: select imaging records acquired on or before this date'''
+    filtered_imaging = imaging_df.copy()
+    filtered_imaging['acquisition_week'] = pd.to_datetime(filtered_imaging['acquisition_week']).dt.date
+    
+    if start_date and isinstance(start_date, date):
+        filtered_imaging = filtered_imaging[filtered_imaging['acquisition_week'] >= start_date]
+
+    if end_date and isinstance(end_date, date):
+        filtered_imaging = filtered_imaging[filtered_imaging['acquisition_week'] <= end_date]
+
+    return filtered_imaging
+    
+    
+def filter_by_release(imaging, release_list):
+    ''' Filter imaging list to only include the V1 visit for subjects from specific releases. '''
+    filtered_imaging = imaging.copy()
+    filtered_imaging = filtered_imaging[(filtered_imaging['subject_id'].isin(release_list)) & (filtered_imaging['visit']=='V1') ]
+    
+    return filtered_imaging
 
 # ----------------------------------------------------------------------------
 # APP Settings
@@ -408,19 +442,34 @@ def create_content(source, data_date, sites):
                                 )
                             ], width=6),
                             dbc.Col([
-                                html.P('Report Dates'),
-                                html.Div(
+                                html.Div([
                                     dcc.Dropdown(
-                                        id='dropdown-date-range-selector',
-                                       options=[
-                                           {'label': 'All records', 'value': 'all'},
-                                           {'label': 'Initial ~100 subjects', 'value': 'initial'},
-                                           {'label': 'Last Month', 'value': 'month'},
-                                           {'label': 'Last Week', 'value': 'week'},
-                                       ],
-                                       value='all'
+                                        id='dropdown-date-range',
+                                        options=[
+                                            {'label': 'All records', 'value': 'all'},
+                                            {'label': 'Custom Date Range', 'value': 'custom'},
+                                            {'label': 'Data Release 1', 'value': 'release 1'},
+                                            {'label': 'Data Release 2', 'value': 'release 2'},
+                                            {'label': 'Recent (15 days)', 'value': '15'},
+                                            {'label': '1 Month (30 days)', 'value': '30'},
+                                            {'label': '6 Months (180 days)', 'value': '180'},
+                                        ],
+                                        value='all'
                                     ),
-                                ),
+                                    html.Div(id='report-dates'),
+                                    html.Div([
+                                        dcc.DatePickerRange(
+                                            id='date-picker-range',
+                                            min_date_allowed=date(2021, 3, 29),
+                                            start_date=date(2021, 3, 29),
+                                            end_date = datetime.today().date(),
+                                            # style={
+                                            #     'display': 'none'
+                                            # },
+                                        ),  
+                                    ]),
+                                    html.Button('Re-load Report', id='btn-selections', n_clicks=0),
+                            ]),
                             ], width=3)
                         ], justify='end', align='center'
                         ),
@@ -529,6 +578,62 @@ app.layout = serve_layout
 # ----------------------------------------------------------------------------
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
+# Date Range / Filter type
+# ----------------------------------------------------------------------------
+
+# @app.callback(
+#     Output("date-picker-range", "style"),
+#     Input("dropdown-date-range", "value"),
+#     State("date-picker-range", "start_date"),
+#     State("date-picker-range", "end_date"),
+#     )
+# def update_visibility(customValue, startDate, endDate):    
+#     visible = {'display': 'block'}
+#     hidden = {'display': 'none'}
+#     if customValue == 'custom':
+#        return visible
+#     else:
+#         return hidden
+
+def relative_date(nDays):
+    today = datetime.today()
+    relativeDate = (today - pd.Timedelta(days=nDays)).date()
+    return relativeDate
+
+@app.callback(
+    Output("date-picker-range", "style"),
+    Output("report-dates", "style"),
+    Input("dropdown-date-range", "value"),
+    State("date-picker-range", "start_date"),
+    State("date-picker-range", "end_date"),
+    )
+def update_visibility(customValue, startDate, endDate):    
+    visible = {'display': 'block'}
+    hidden = {'display': 'none'}
+    if customValue == 'custom':
+       return visible, hidden
+    else:
+        return hidden, visible
+
+@app.callback(
+    Output("date-picker-range", "start_date"),
+    Output("date-picker-range", "end_date"),   
+    Output("report-dates", "children"),
+    Input("dropdown-date-range", "value"),
+    )
+def update_date_range(customValue):
+    full_range_options = ['all','custom']
+    start_date=date(2021, 3, 29)
+    end_date = datetime.today().date()
+
+    if customValue and customValue.isnumeric():
+        start_date = relative_date(int(customValue))
+    
+    print(start_date, end_date)
+    report_dates = 'Date Range: ' + start_date.strftime("%m/%d/%Y") + ' to ' + end_date.strftime("%m/%d/%Y")
+    return start_date, end_date, report_dates
+
 @app.callback(
     Output('filtered_data', 'data'),
     Input('session_data', 'data')
