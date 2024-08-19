@@ -82,6 +82,11 @@ def filter_imaging_by_date(imaging_df, start_date = None, end_date = None):
     filtered_imaging = imaging_df.copy()
     filtered_imaging['acquisition_week'] = pd.to_datetime(filtered_imaging['acquisition_week']).dt.date
     
+    # convert string dates to date object
+    start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+    end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+    print(isinstance(start_date, date), type(start_date))
+    print(isinstance(end_date, date))
     if start_date and isinstance(start_date, date):
         filtered_imaging = filtered_imaging[filtered_imaging['acquisition_week'] >= start_date]
 
@@ -324,11 +329,14 @@ def get_processed_data(imaging, qc):
 
     return processed_data_dictionary
 
-def get_filtered_data_store(raw_data_store, filter_type=None, start_date: datetime = None, end_date = None):
+def get_filtered_data_store(raw_data_store, start_date: datetime = None, end_date = None, filter_type=None):
     imaging = pd.DataFrame.from_dict(raw_data_store['imaging'])
     qc = pd.DataFrame.from_dict(raw_data_store['qc'])
+    print(len(imaging))
+    print(len(qc))
 
     if imaging.empty or qc.empty:
+        print('empty')
         completions = pd.DataFrame()
         imaging_overview =  pd.DataFrame()
         indicated_received =  pd.DataFrame()
@@ -336,13 +344,18 @@ def get_filtered_data_store(raw_data_store, filter_type=None, start_date: dateti
         sites = []
     else:
         if filter_type:
+            print(filter_type)
             if filter_type == 'id_list' and isinstance(filter_type, list):
                 imaging = imaging[imaging['subject_id'].isin(filter_type)]
             else:
-                imaging = filter_imaging_by_date(imaging, filter_type=None, start_date = start_date, end_date = end_date)
+                print('dates: ', start_date, end_date)
+                imaging = filter_imaging_by_date(imaging, start_date = start_date, end_date = end_date)
         else:
             imaging = imaging
         qc = filter_qc(qc, imaging)
+
+    print(len(imaging))
+    print(len(qc))
 
     processed_data_dictionary = get_processed_data(imaging, qc)
 
@@ -417,7 +430,7 @@ def create_data_stores(source, raw_data_dictionary):
     data_stores = html.Div([
         dcc.Store(id='session_data',  data = raw_data_dictionary), #storage_type='session',
         dcc.Store(id='tab_text', data=tab_text),
-        dcc.Store(id='report_data'),
+        dcc.Store(id='cache_data'),
         dcc.Store(id='filtered_data'),
         # html.P('Imaging Source: ' + data_dictionary['imaging_source']),
         # html.P('QC Source: ' + data_dictionary['qc_source']),
@@ -469,6 +482,7 @@ def create_content(source, data_date, sites):
                                         ),  
                                     ]),
                                     html.Button('Re-load Report', id='btn-selections', n_clicks=0),
+                                    html.Div(id='datediv'),
                             ]),
                             ], width=3)
                         ], justify='end', align='center'
@@ -582,19 +596,6 @@ app.layout = serve_layout
 # Date Range / Filter type
 # ----------------------------------------------------------------------------
 
-# @app.callback(
-#     Output("date-picker-range", "style"),
-#     Input("dropdown-date-range", "value"),
-#     State("date-picker-range", "start_date"),
-#     State("date-picker-range", "end_date"),
-#     )
-# def update_visibility(customValue, startDate, endDate):    
-#     visible = {'display': 'block'}
-#     hidden = {'display': 'none'}
-#     if customValue == 'custom':
-#        return visible
-#     else:
-#         return hidden
 
 def relative_date(nDays):
     today = datetime.today()
@@ -634,12 +635,33 @@ def update_date_range(customValue):
     report_dates = 'Date Range: ' + start_date.strftime("%m/%d/%Y") + ' to ' + end_date.strftime("%m/%d/%Y")
     return start_date, end_date, report_dates
 
+# @app.callback(
+#     Output('cache_data', 'data'),
+#     Output('datediv','children'),
+#     Input('btn-selections','clicks'),
+#     State('session_data', 'data'),
+#     State("dropdown-date-range", "value"),
+#     State("date-picker-range", "start_date"),
+#     State("date-picker-range", "end_date"),
+# )
+# def filtered(clicks, raw_data, selection, startDate, endDate):
+#     cache_data = {}
+#     print(selection, startDate, endDate)
+#     children = html.P("I'm here!")
+#     return cache_data, children
+
+# TO DO: Switch input to Re-load report button
 @app.callback(
     Output('filtered_data', 'data'),
-    Input('session_data', 'data')
+    Input('btn-selections','n_clicks'),
+    State('session_data', 'data'),
+    State("date-picker-range", "start_date"),
+    State("date-picker-range", "end_date")
 )
-def filtered(raw_data):
-    filtered_data = get_filtered_data_store(raw_data)
+def filtered(clicks, rawData, startDate, endDate):
+    filtered_data = get_filtered_data_store(rawData, startDate, endDate, 'dates')
+    print(startDate)
+    print(endDate)
     return filtered_data
 
 # Filter
