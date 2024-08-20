@@ -996,7 +996,7 @@ def update_pie(sites, report_data, options):
 @app.callback(
     Output('heatmap', 'children'),
     Input('dropdown-sites', 'value'),
-    State('report_data', 'data')
+    Input('report_data', 'data')
 )
 def update_heatmap(sites, data):
     global color_mapping_list
