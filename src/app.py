@@ -63,6 +63,40 @@ icols = list(scan_dict.keys())
 icols2 = list(scan_dict.values())
 
 color_mapping_list = [(0.0, 'white'),(0.1, 'lightgrey'),(0.25, 'red'),(0.5, 'orange'),(0.75, 'yellow'),(1.0, 'green')]
+# ---------------------------------
+#   Data ETL
+# ---------------------------------
+
+release1_ids = list(pd.read_csv('assets/DataFreeze_1_022823.csv').record_id)
+release2_ids = list(pd.read_csv('assets/DataFreeze_2_022924.csv').record_id)
+
+def relative_date(nDays):
+    today = datetime.today()
+    relativeDate = (today - pd.Timedelta(days=nDays)).date()
+    return relativeDate
+
+def filter_imaging_by_date(imaging_df, date_col, start_date = None, end_date = None):
+    '''Filter the imaging datatable using:
+    start_date: select imaging records acquired on or after this date
+    end_date: select imaging records acquired on or before this date'''
+    filtered_imaging = imaging_df.copy()
+    filtered_imaging[date_col] = pd.to_datetime(filtered_imaging[date_col]).dt.date
+    
+    if start_date and isinstance(start_date, date):
+        filtered_imaging = filtered_imaging[filtered_imaging[date_col] >= start_date]
+
+    if end_date and isinstance(end_date, date):
+        filtered_imaging = filtered_imaging[filtered_imaging[date_col] <= end_date]
+
+    return filtered_imaging
+    
+    
+def filter_by_release(imaging, release_list):
+    ''' Filter imaging list to only include the V1 visit for subjects from specific releases. '''
+    filtered_imaging = imaging.copy()
+    filtered_imaging = filtered_imaging[(filtered_imaging['subject_id'].isin(release_list)) & (filtered_imaging['visit']=='V1') ]
+    
+    return filtered_imaging
 
 # ----------------------------------------------------------------------------
 # APP Settings
@@ -290,25 +324,40 @@ def get_processed_data(imaging, qc):
 
     return processed_data_dictionary
 
-def get_filtered_data_store(raw_data_store, filter_type=None, start_date: datetime = None, end_date = None):
+def get_report_data_store(raw_data_store, selection = None, start_date: datetime = None, end_date = None):
     imaging = pd.DataFrame.from_dict(raw_data_store['imaging'])
     qc = pd.DataFrame.from_dict(raw_data_store['qc'])
+    print(len(imaging))
+    print(len(qc))
+    print(selection)
 
     if imaging.empty or qc.empty:
+        print('empty')
         completions = pd.DataFrame()
         imaging_overview =  pd.DataFrame()
         indicated_received =  pd.DataFrame()
         # stacked_bar_df =  pd.DataFrame()
         sites = []
     else:
-        if filter_type:
-            if filter_type == 'id_list' and isinstance(filter_type, list):
-                imaging = imaging[imaging['subject_id'].isin(filter_type)]
-            else:
-                imaging = filter_imaging_by_date(imaging, filter_type=None, start_date = start_date, end_date = end_date)
-        else:
+        if not selection or selection =='all':
             imaging = imaging
-        qc = filter_qc(qc, imaging)
+            qc = qc 
+        else:
+            if selection == 'release 1':    
+                imaging = filter_by_release(imaging, release1_ids)
+
+            elif selection == 'release 2':    
+                imaging = filter_by_release(imaging, release2_ids)
+
+            else:    
+                startDate = datetime.strptime(start_date, '%Y-%m-%d').date()
+                endDate = datetime.strptime(end_date, '%Y-%m-%d').date()
+                imaging = filter_imaging_by_date(imaging, 'acquisition_week', startDate, endDate)
+            # Filter qc by the subject IDs in the image filter
+            qc = filter_qc(qc, imaging)
+
+    print(len(imaging))
+    print(len(qc))
 
     processed_data_dictionary = get_processed_data(imaging, qc)
 
@@ -383,8 +432,8 @@ def create_data_stores(source, raw_data_dictionary):
     data_stores = html.Div([
         dcc.Store(id='session_data',  data = raw_data_dictionary), #storage_type='session',
         dcc.Store(id='tab_text', data=tab_text),
+        dcc.Store(id='cache_data'),
         dcc.Store(id='report_data'),
-        dcc.Store(id='filtered_data'),
         # html.P('Imaging Source: ' + data_dictionary['imaging_source']),
         # html.P('QC Source: ' + data_dictionary['qc_source']),
         create_content(source, data_date, sites)
@@ -408,19 +457,35 @@ def create_content(source, data_date, sites):
                                 )
                             ], width=6),
                             dbc.Col([
-                                html.P('Report Dates'),
-                                html.Div(
+                                html.Div([
                                     dcc.Dropdown(
-                                        id='dropdown-date-range-selector',
-                                       options=[
-                                           {'label': 'All records', 'value': 'all'},
-                                           {'label': 'Initial ~100 subjects', 'value': 'initial'},
-                                           {'label': 'Last Month', 'value': 'month'},
-                                           {'label': 'Last Week', 'value': 'week'},
-                                       ],
-                                       value='all'
+                                        id='dropdown-date-range',
+                                        options=[
+                                            {'label': 'All records', 'value': 'all'},
+                                            {'label': 'Custom Date Range', 'value': 'custom'},
+                                            {'label': 'Data Release 1', 'value': 'release 1'},
+                                            {'label': 'Data Release 2', 'value': 'release 2'},
+                                            {'label': 'Recent (15 days)', 'value': '15'},
+                                            {'label': '1 Month (30 days)', 'value': '30'},
+                                            {'label': '6 Months (180 days)', 'value': '180'},
+                                        ],
+                                        value='all'
                                     ),
-                                ),
+                                    html.Div(id='report-dates'),
+                                    html.Div([
+                                        dcc.DatePickerRange(
+                                            id='date-picker-range',
+                                            min_date_allowed=date(2021, 3, 29),
+                                            start_date=date(2021, 3, 29),
+                                            end_date = datetime.today().date(),
+                                            # style={
+                                            #     'display': 'none'
+                                            # },
+                                        ),  
+                                    ]),
+                                    html.Button('Re-load Report', id='btn-selections', n_clicks=0),
+                                    html.Div(id='datediv'),
+                            ]),
                             ], width=3)
                         ], justify='end', align='center'
                         ),
@@ -529,22 +594,87 @@ app.layout = serve_layout
 # ----------------------------------------------------------------------------
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
+# Date Range / Filter type
+# ----------------------------------------------------------------------------
+
+
+def relative_date(nDays):
+    today = datetime.today()
+    relativeDate = (today - pd.Timedelta(days=nDays)).date()
+    return relativeDate
+
 @app.callback(
-    Output('filtered_data', 'data'),
-    Input('session_data', 'data')
+    Output("date-picker-range", "style"),
+    Output("report-dates", "style"),
+    Input("dropdown-date-range", "value"),
+    State("date-picker-range", "start_date"),
+    State("date-picker-range", "end_date"),
+    )
+def update_visibility(customValue, startDate, endDate):    
+    visible = {'display': 'block'}
+    hidden = {'display': 'none'}
+    if customValue == 'custom':
+       return visible, hidden
+    else:
+        return hidden, visible
+
+@app.callback(
+    Output("date-picker-range", "start_date"),
+    Output("date-picker-range", "end_date"),   
+    Output("report-dates", "children"),
+    Input("dropdown-date-range", "value"),
+    )
+def update_date_range(customValue):
+    full_range_options = ['all','custom']
+    start_date=date(2021, 3, 29)
+    end_date = datetime.today().date()
+
+    if customValue and customValue.isnumeric():
+        start_date = relative_date(int(customValue))
+    
+    print(start_date, end_date)
+    report_dates = 'Date Range: ' + start_date.strftime("%m/%d/%Y") + ' to ' + end_date.strftime("%m/%d/%Y")
+    return start_date, end_date, report_dates
+
+# @app.callback(
+#     Output('cache_data', 'data'),
+#     Output('datediv','children'),
+#     Input('btn-selections','clicks'),
+#     State('session_data', 'data'),
+#     State("dropdown-date-range", "value"),
+#     State("date-picker-range", "start_date"),
+#     State("date-picker-range", "end_date"),
+# )
+# def filtered(clicks, raw_data, selection, startDate, endDate):
+#     cache_data = {}
+#     print(selection, startDate, endDate)
+#     children = html.P("I'm here!")
+#     return cache_data, children
+
+# TO DO: Switch input to Re-load report button
+@app.callback(
+    Output('report_data', 'data'),
+    Input('btn-selections','n_clicks'),
+    State('session_data', 'data'),
+    State("dropdown-date-range", "value"),
+    State("date-picker-range", "start_date"),
+    State("date-picker-range", "end_date")
 )
-def filtered(raw_data):
-    filtered_data = get_filtered_data_store(raw_data)
-    return filtered_data
+def filtered(clicks, rawData, selection, startDate, endDate):
+    report_data = get_report_data_store(rawData, selection, startDate, endDate)
+    print(startDate)
+    print(endDate)
+    return report_data
 
 # Filter
 @app.callback(
     Output('test-row','children'),
-    Input('filtered_data', 'data')
+    Input('report_data', 'data')
 )
-def see_filtering(filtered_data):
+def see_filtering(report_data):
     kids = html.Div()
-    # kids = html.Div(json.dumps(filtered_data['qc']))
+    # kids = html.Div(json.dumps(report_data['qc']))
     return kids
 
 @app.callback(Output("tab-content", "children"),
@@ -690,7 +820,7 @@ def switch_tab(at, tab_text):
 # Toggle Stacked bar toggle_stackedbar graph_stackedbar
 @app.callback(
     Output('overview_div', 'children'),
-    Input('filtered_data', 'data')
+    Input('report_data', 'data')
 )
 def update_overview_section(data):
     imaging_overview = pd.DataFrame.from_dict(data['imaging_overview'])
@@ -698,7 +828,7 @@ def update_overview_section(data):
 
 @app.callback(
     Output('discrepancies_section', 'children'),
-    Input('filtered_data', 'data')
+    Input('report_data', 'data')
 )
 def update_discrepancies_section(data):
     # Load imaging data from data store
@@ -749,7 +879,7 @@ def update_discrepancies_section(data):
 
 @app.callback(
     Output('cuff_section', 'children'),
-    Input('filtered_data', 'data')
+    Input('report_data', 'data')
 )
 def update_cuff_section(data):
     # Load imaging data from data store
@@ -765,12 +895,12 @@ def update_cuff_section(data):
 
 @app.callback(
     Output('graph_stackedbar_div', 'children'),
-    Input('filtered_data', 'data'),
+    Input('report_data', 'data'),
     Input('toggle_stackedbar', 'value'),
     Input('toggle_visit', 'value'),
     Input('dropdown-bar', 'value'),
 )
-def update_stackedbar(filtered_data, type, visit, chart_selection):
+def update_stackedbar(report_data, type, visit, chart_selection):
     global mcc_dict
     # False = Count and True = Percent
     # return json.dumps(mcc_dict)
@@ -779,7 +909,7 @@ def update_stackedbar(filtered_data, type, visit, chart_selection):
     else:
         type = 'Count'
 
-    qc = pd.DataFrame.from_dict(filtered_data['qc'])
+    qc = pd.DataFrame.from_dict(report_data['qc'])
     count_col='sub'
     color_col = 'rating'
 
@@ -808,7 +938,7 @@ def update_stackedbar(filtered_data, type, visit, chart_selection):
 @app.callback(
     Output('completions_section', 'children'),
     Input('dropdown-sites', 'value'),
-    State('filtered_data', 'data')
+    State('report_data', 'data')
 )
 def update_image_report(sites, data):
     imaging = pd.DataFrame.from_dict(data['imaging'])
@@ -826,12 +956,12 @@ def update_image_report(sites, data):
 @app.callback(
     Output('pie_charts', 'children'),
     Input('dropdown-sites', 'value'),
-    Input('filtered_data', 'data'),
+    Input('report_data', 'data'),
     State('dropdown-sites', 'options')
 )
-def update_pie(sites, filtered_data, options):
+def update_pie(sites, report_data, options):
     sites_list = sites.split(",")
-    ratings = pd.DataFrame.from_dict(filtered_data['ratings'])
+    ratings = pd.DataFrame.from_dict(report_data['ratings'])
     site_label = [x['label'] for x in options if x['value'] == sites]
     pie_df = ratings[ratings['Site'].isin(sites_list)]
 
@@ -866,7 +996,7 @@ def update_pie(sites, filtered_data, options):
 @app.callback(
     Output('heatmap', 'children'),
     Input('dropdown-sites', 'value'),
-    State('filtered_data', 'data')
+    Input('report_data', 'data')
 )
 def update_heatmap(sites, data):
     global color_mapping_list
