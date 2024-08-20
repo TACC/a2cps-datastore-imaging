@@ -189,10 +189,9 @@ def roll_up(imaging):
     cols = ['site','visit','subject_id']
     df = imaging[cols].groupby(['site','visit']).count().reset_index()
     df = df.pivot(index='site', columns = 'visit', values = 'subject_id')
-    print(len(df))
-    # df.loc['All Sites'] = df.sum(numeric_only=True, axis=0)
-    # df.loc[:,'Total'] = df.sum(numeric_only=True, axis=1)
-    # df.reset_index(inplace=True)
+    df.loc['All Sites'] = df.sum(numeric_only=True, axis=0)
+    df.loc[:,'Total'] = df.sum(numeric_only=True, axis=1)
+    df.reset_index(inplace=True)
     return df
 
 # ----------------------------------------------------------------------------
