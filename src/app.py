@@ -517,11 +517,11 @@ def create_content(source, data_date, sites):
                             dbc.Col([
                                 dbc.Tabs(id="tabs", active_tab='tab-overview', children=[
                                     dbc.Tab(label='Overview', tab_id='tab-overview'),
-                                    dbc.Tab(label='Discrepancies', tab_id='tab-discrepancies'),
                                     dbc.Tab(label='Completions', tab_id='tab-completions'),
                                     dbc.Tab(label='Pie Charts', tab_id='tab-pie'),
                                     dbc.Tab(label='Heat Map', tab_id='tab-heatmap'),
                                     dbc.Tab(label='Cuff Pressure', tab_id='tab-cuff'),
+                                    dbc.Tab(label='Discrepancies', tab_id='tab-discrepancies'),
                                 ]),
                             ],width=10),
                             dbc.Col([
@@ -742,25 +742,6 @@ def switch_tab(at, tab_text):
                 )
         style = {'display': 'none'}
         return overview, style
-    elif at == "tab-discrepancies":
-        discrepancies = dcc.Loading(
-                    id="loading-discrepancies",
-                    children=[
-                        html.Div([
-                            dbc.Row([
-                                dbc.Col([
-                                    dcc.Markdown(tab_text['discrepancies']['text'])
-                                ])
-                            ]),
-
-                            dbc.Row([
-                                dbc.Col([html.Div(id='discrepancies_section')])
-                            ]),
-                        ])
-                    ],
-                    type="circle",
-                )
-        return discrepancies, {'display': 'block'}
     elif at == "tab-completions":
         completions = dcc.Loading(
                     id="loading-completions",
@@ -813,6 +794,25 @@ def switch_tab(at, tab_text):
                 type="circle",
             )
         return cuff, {'display': 'block'}
+    elif at == "tab-discrepancies":
+        discrepancies = dcc.Loading(
+                    id="loading-discrepancies",
+                    children=[
+                        html.Div([
+                            dbc.Row([
+                                dbc.Col([
+                                    dcc.Markdown(tab_text['discrepancies']['text'])
+                                ])
+                            ]),
+
+                            dbc.Row([
+                                dbc.Col([html.Div(id='discrepancies_section')])
+                            ]),
+                        ])
+                    ],
+                    type="circle",
+                )
+        return discrepancies, {'display': 'block'}
 
     return html.P("This shouldn't ever be displayed...")
 # Define callback to update graph_stackedbar
@@ -832,50 +832,67 @@ def update_overview_section(data):
 )
 def update_discrepancies_section(data):
     # Load imaging data from data store
-     imaging = pd.DataFrame.from_dict(data['imaging'])
-     df = pd.DataFrame.from_dict(data['indicated_received'])
+    imaging = pd.DataFrame.from_dict(data['imaging'])
+    df = pd.DataFrame.from_dict(data['indicated_received'])
 
-     # Rescinded patients in imaging
-     cols = ['site', 'subject_id', 'visit',  'dicom',
-       'bids', 'acquisition_week', 'Surgery Week']
-     rescinded_imaging = imaging[imaging['subject_id'].isin(list(rescinded['main_record_id']))][cols]
-     rescind_msg = 'Subjects who rescinded prior to ' + rescinded_date + ' but have records in the imaging file'
+    # Get records missing acquisition dates
+    missing_dates_cols = ['site', 'subject_id', 'visit','dicom','bids', 'acquisition_week', 'Surgery Week'] 
+    missing_dates = imaging[imaging.acquisition_week.isnull()][missing_dates_cols]
 
-     # Get data for tables
-     # df = get_indicated_received(imaging)
-     df = pd.DataFrame.from_dict(data['indicated_received'])
-     index_cols = ['Site','Subject','Visit']
-     no_bids = df[df['BIDS']==0].sort_values(by=index_cols+['Scan'])
-     mismatch = df[(df['DICOM']==1) & (df['Indicated'] != df['Received'])]
+    # Rescinded patients in imaging
+    cols = ['site', 'subject_id', 'visit',  'dicom',
+    'bids', 'acquisition_week', 'Surgery Week']
+    rescinded_imaging = imaging[imaging['subject_id'].isin(list(rescinded['main_record_id']))][cols]
+    rescind_msg = 'Subjects who rescinded prior to ' + rescinded_date + ' but have records in the imaging file'
 
-     no_bids_table = dt.DataTable(
-                    id='tbl-no_bids', data=no_bids.to_dict('records'),
-                    columns=[{"name": i, "id": i} for i in no_bids.columns],
-                    filter_action="native",
-                    sort_action="native",
-                    sort_mode="multi",
-                    )
+    # Get data for tables
+    # df = get_indicated_received(imaging)
+    df = pd.DataFrame.from_dict(data['indicated_received'])
+    index_cols = ['Site','Subject','Visit']
+    no_bids = df[df['BIDS']==0].sort_values(by=index_cols+['Scan'])
+    mismatch = df[(df['DICOM']==1) & (df['Indicated'] != df['Received'])]
 
-     mismatch_table = dt.DataTable(
-                    id='tbl-mismatch', data=mismatch.to_dict('records'),
-                    columns=[{"name": i, "id": i} for i in mismatch.columns],
-                    filter_action="native",
-                    sort_action="native",
-                    sort_mode="multi",
-                    )
+    missing_acquisition_table = dt.DataTable(
+                id='tbl-no_acquisition', data=missing_dates.to_dict('records'),
+                columns=[{"name": i, "id": i} for i in missing_dates.columns],
+                filter_action="native",
+                sort_action="native",
+                sort_mode="multi",
+                )
+    
+    no_bids_table = dt.DataTable(
+                id='tbl-no_bids', data=no_bids.to_dict('records'),
+                columns=[{"name": i, "id": i} for i in no_bids.columns],
+                filter_action="native",
+                sort_action="native",
+                sort_mode="multi",
+                )
+
+    mismatch_table = dt.DataTable(
+                id='tbl-mismatch', data=mismatch.to_dict('records'),
+                columns=[{"name": i, "id": i} for i in mismatch.columns],
+                filter_action="native",
+                sort_action="native",
+                sort_mode="multi",
+                )
 
 
-     discrepancies_div = html.Div([
-             dbc.Col([
-                 html.H3("BIDS value = 0"),
-                 no_bids_table
-             ],width=6),
-           dbc.Col([
-               html.H3('Records with mismatch between indicated and received'),
-               mismatch_table
-           ],width=6),
-     ])
-     return discrepancies_div
+    discrepancies_div = html.Div([
+        dbc.Col([
+            html.H3("Data Missing Acquisition Week Field"),
+            html.P("This information only avilable when 'All records' is selected.  These records are filtered out in other views." ),
+            missing_acquisition_table
+        ],width=6),
+        dbc.Col([
+            html.H3("BIDS value = 0"),
+            no_bids_table
+        ],width=6),
+        dbc.Col([
+            html.H3('Records with mismatch between indicated and received'),
+            mismatch_table
+        ],width=6),
+    ])
+    return discrepancies_div
 
 @app.callback(
     Output('cuff_section', 'children'),
