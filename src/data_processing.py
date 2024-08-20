@@ -68,30 +68,56 @@ def clean_qc(qc_full):
     
     return qc
 
+# ----------------------------------------------------------------------------
+# Filter imaging by date
+# ----------------------------------------------------------------------------
+def relative_date(nDays):
+    today = datetime.today()
+    relativeDate = (today - pd.Timedelta(days=nDays)).date()
+    return relativeDate
 
-# ----------------------------------------------------------------------------
-# Filter by date
-# ----------------------------------------------------------------------------
-def filter_imaging_by_date(imaging_df, start_date: datetime = None, end_date = None):
+def filter_imaging_by_date(imaging_df, start_date = None, end_date = None):
     '''Filter the imaging datatable using:
     start_date: select imaging records acquired on or after this date
     end_date: select imaging records acquired on or before this date'''
     filtered_imaging = imaging_df.copy()
-    filtered_imaging['acquisition_week']= pd.to_datetime(filtered_imaging['acquisition_week'], errors = 'coerce')
-
-    if start_date and isinstance(start_date, datetime):
+    # filtered_imaging['acquisition_week']= pd.to_datetime(filtered_imaging['acquisition_week'], errors = 'coerce')
+    filtered_imaging['acquisition_week'] = pd.to_datetime(filtered_imaging['acquisition_week']).dt.date
+    
+    if start_date and isinstance(start_date, date):
         filtered_imaging = filtered_imaging[filtered_imaging['acquisition_week'] >= start_date]
 
-    if end_date and isinstance(end_date, datetime):
+    if end_date and isinstance(end_date, date):
         filtered_imaging = filtered_imaging[filtered_imaging['acquisition_week'] <= end_date]
 
     return filtered_imaging
 
+
+# ----------------------------------------------------------------------------
+# Filter imaging by data release
+# ----------------------------------------------------------------------------
+
+def filter_by_release(imaging, release_list):
+    ''' Filter imaging list to only include the V1 visit for subjects from specific releases. '''
+    filtered_imaging = imaging.copy()
+    filtered_imaging = filtered_imaging[(filtered_imaging['subject_id'].isin(release_list)) & (filtered_imaging['visit']=='V1') ]
+    
+    return filtered_imaging
+
+# ----------------------------------------------------------------------------
+# Filter qc by filtered imaging
+# ----------------------------------------------------------------------------
+
 def filter_qc(qc, filtered_imaging):
     '''Filter qx records to just those subjects / visits in the filtered imaging set'''
+    filtered_qc = qc.copy()
+    filtered_qc['ses'] = filtered_qc['ses'] .astype('category')
+    
     filt_sub = filtered_imaging[['subject_id','visit']]
-    filt_sub.columns = ['sub','ses']
-    filtered_qc = qc.merge(filt_sub, how = 'left',on = ['sub','ses'])
+    filt_sub.columns = ['sub','ses']    
+    filt_sub['ses'] = filt_sub['ses'] .astype('category')
+    
+    filtered_qc = qc.merge(filt_sub, how = 'inner',on = ['sub','ses'])
     return filtered_qc
 
 # ----------------------------------------------------------------------------
@@ -158,6 +184,8 @@ def get_indicated_received(imaging_dataframe, validation_column = 'bids', valida
 # Imaging Overview
 # ----------------------------------------------------------------------------
 def roll_up(imaging):
+    print(imaging.columns)
+    print(len(imaging))
     cols = ['site','visit','subject_id']
     df = imaging[cols].groupby(['site','visit']).count().reset_index()
     df = df.pivot(index='site', columns = 'visit', values = 'subject_id')
@@ -180,7 +208,7 @@ def get_completions(df):
     icols = list(scan_dict.keys())
     icols2 = list(scan_dict.values())
 
-    df['completions_id'] = df.apply(lambda x: str(x['subject_id']) + x['visit'],axis=1)
+    # df['completions_id'] = df.apply(lambda x: str(x['subject_id']) + x['visit'],axis=1)
     completions = df[['completions_id']+icols].groupby(icols).count().reset_index().rename(columns=scan_dict).rename(columns={'completions_id':'Count'})
     completions['Percent'] = round(100 * completions['Count']/(completions['Count'].sum()),1)
     completions = completions.sort_values(by=['Count'], ascending=False)
