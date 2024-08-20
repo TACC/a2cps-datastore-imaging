@@ -117,7 +117,7 @@ def filter_qc(qc, filtered_imaging):
     filt_sub.columns = ['sub','ses']    
     filt_sub['ses'] = filt_sub['ses'] .astype('category')
     
-    filtered_qc = qc.merge(filt_sub, how = 'left',on = ['sub','ses'])
+    filtered_qc = qc.merge(filt_sub, how = 'inner',on = ['sub','ses'])
     return filtered_qc
 
 # ----------------------------------------------------------------------------
