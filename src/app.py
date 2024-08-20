@@ -517,11 +517,11 @@ def create_content(source, data_date, sites):
                             dbc.Col([
                                 dbc.Tabs(id="tabs", active_tab='tab-overview', children=[
                                     dbc.Tab(label='Overview', tab_id='tab-overview'),
-                                    dbc.Tab(label='Discrepancies', tab_id='tab-discrepancies'),
                                     dbc.Tab(label='Completions', tab_id='tab-completions'),
                                     dbc.Tab(label='Pie Charts', tab_id='tab-pie'),
                                     dbc.Tab(label='Heat Map', tab_id='tab-heatmap'),
                                     dbc.Tab(label='Cuff Pressure', tab_id='tab-cuff'),
+                                    dbc.Tab(label='Discrepancies', tab_id='tab-discrepancies'),
                                 ]),
                             ],width=10),
                             dbc.Col([
@@ -742,25 +742,6 @@ def switch_tab(at, tab_text):
                 )
         style = {'display': 'none'}
         return overview, style
-    elif at == "tab-discrepancies":
-        discrepancies = dcc.Loading(
-                    id="loading-discrepancies",
-                    children=[
-                        html.Div([
-                            dbc.Row([
-                                dbc.Col([
-                                    dcc.Markdown(tab_text['discrepancies']['text'])
-                                ])
-                            ]),
-
-                            dbc.Row([
-                                dbc.Col([html.Div(id='discrepancies_section')])
-                            ]),
-                        ])
-                    ],
-                    type="circle",
-                )
-        return discrepancies, {'display': 'block'}
     elif at == "tab-completions":
         completions = dcc.Loading(
                     id="loading-completions",
@@ -813,6 +794,25 @@ def switch_tab(at, tab_text):
                 type="circle",
             )
         return cuff, {'display': 'block'}
+    elif at == "tab-discrepancies":
+        discrepancies = dcc.Loading(
+                    id="loading-discrepancies",
+                    children=[
+                        html.Div([
+                            dbc.Row([
+                                dbc.Col([
+                                    dcc.Markdown(tab_text['discrepancies']['text'])
+                                ])
+                            ]),
+
+                            dbc.Row([
+                                dbc.Col([html.Div(id='discrepancies_section')])
+                            ]),
+                        ])
+                    ],
+                    type="circle",
+                )
+        return discrepancies, {'display': 'block'}
 
     return html.P("This shouldn't ever be displayed...")
 # Define callback to update graph_stackedbar
