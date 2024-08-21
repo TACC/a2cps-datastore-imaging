@@ -67,8 +67,8 @@ color_mapping_list = [(0.0, 'white'),(0.1, 'lightgrey'),(0.25, 'red'),(0.5, 'ora
 #   Data ETL
 # ---------------------------------
 
-release1_ids = list(pd.read_csv('assets/DataFreeze_1_022823.csv').record_id)
-release2_ids = list(pd.read_csv('assets/DataFreeze_2_022924.csv').record_id)
+release1_ids = list(pd.read_csv('assets/DataFreeze_1_ids.csv').subject_id)
+release2_ids = list(pd.read_csv('assets/DataFreeze_2_ids.csv').subject_id)
 
 def relative_date(nDays):
     today = datetime.today()
