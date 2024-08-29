@@ -109,13 +109,13 @@ def filter_by_release(imaging, release_list):
 # ----------------------------------------------------------------------------
 
 def filter_qc(qc, filtered_imaging):
-    '''Filter qx records to just those subjects / visits in the filtered imaging set'''
+    '''Filter qc records to just those subjects / visits in the filtered imaging set'''
     filtered_qc = qc.copy()
-    filtered_qc['ses'] = filtered_qc['ses'] .astype('category')
+    filtered_qc.loc[:,'ses'] = filtered_qc['ses'].astype('category')
     
-    filt_sub = filtered_imaging[['subject_id','visit']]
+    filt_sub = filtered_imaging[['subject_id','visit']].copy()
     filt_sub.columns = ['sub','ses']    
-    filt_sub['ses'] = filt_sub['ses'] .astype('category')
+    filt_sub.loc[:,'ses'] = filt_sub['ses'].astype('category')
     
     filtered_qc = qc.merge(filt_sub, how = 'inner',on = ['sub','ses'])
     return filtered_qc
