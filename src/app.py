@@ -599,11 +599,6 @@ app.layout = serve_layout
 # ----------------------------------------------------------------------------
 
 
-def relative_date(nDays):
-    today = datetime.today()
-    relativeDate = (today - pd.Timedelta(days=nDays)).date()
-    return relativeDate
-
 @app.callback(
     Output("date-picker-range", "style"),
     Output("report-dates", "style"),
