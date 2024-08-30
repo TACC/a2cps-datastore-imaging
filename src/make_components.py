@@ -93,7 +93,8 @@ def bar_chart_dataframe(df, mcc_dict, count_col, x_col, color_col = None, facet_
     # Update display text of legend
     rating_legend = {'green':'no known issues',
                       'yellow':'minor variations/issues; correctable' ,
-                      'red':'significant variations/issues; not expected to be comparable'}
+                      'red':'significant variations/issues; not expected to be comparable',
+                      'unavailable':'data not available'}
     fig.for_each_trace(lambda t: t.update(name = rating_legend[t.name],
                                           legendgroup = rating_legend[t.name]
                                          ))

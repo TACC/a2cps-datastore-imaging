@@ -49,7 +49,7 @@ def clean_imaging(imaging_full):
     imaging = imaging_full[imaging_cols].copy() # Copy subset of imaging dataframe
     imaging.rename(columns=imaging_columns_dict, inplace=True) # Rename columns
     imaging = imaging.replace('na', np.nan) # Replace 'na' string with actual null value
-    imaging['completions_id'] = imaging.apply(lambda x: str(x['subject_id']) + x['visit'],axis=1) # Add completions id value from combination of subject ID and visit
+    imaging['completions_id'] = imaging.apply(lambda x: str(x['subject_id']) + x['visit'],axis=1, result_type='reduce') # Add completions id value from combination of subject ID and visit
     
     return imaging
 
@@ -67,6 +67,27 @@ def clean_qc(qc_full):
     qc.rename(columns=qc_columns_dict, inplace=True) # Rename columns
     
     return qc
+
+def generate_missing_qc(imaging, qc):
+    # Get complete list of scans that would be expected
+    scan_types = ['CUFF1', 'CUFF2', 'DWI', 'REST1', 'REST2', 'T1w']
+    scan_types_df = pd.DataFrame(scan_types, columns=['scan'])
+
+    # Select needed cols from imaging and rename cols
+    imaging_cols = ['site','subject_id', 'visit']
+    imaging_qc = imaging[imaging_cols].copy()
+    imaging_qc.columns = ['site', 'sub', 'ses']
+
+    # Outer cross imaging with scan types for full expected list
+    imaging_qc = imaging_qc.merge(scan_types_df, how='cross')
+
+    # Merge with ratings data from qc
+    full_ratings = imaging_qc.merge(qc, on=['site', 'sub', 'ses','scan'], how='outer')
+
+    # Fill NaN ratings withs 'unavailable'
+    full_ratings.fillna({"rating": "unavailable"}, inplace = True)
+    
+    return full_ratings
 
 # ----------------------------------------------------------------------------
 # Filter imaging by date
@@ -187,9 +208,11 @@ def roll_up(imaging):
     print(imaging.columns)
     print(len(imaging))
     cols = ['site','visit','subject_id']
-    df = imaging[cols].groupby(['site','visit']).count().reset_index()
+    df = imaging[cols].copy()
+    df = df.groupby(['site','visit']).count().reset_index()
     df = df.pivot(index='site', columns = 'visit', values = 'subject_id')
-    df.loc['All Sites'] = df.sum(numeric_only=True, axis=0)
+    if len(df >0):
+        df.loc['All Sites'] = df.sum(numeric_only=True, axis=0)
     df.loc[:,'Total'] = df.sum(numeric_only=True, axis=1)
     df.reset_index(inplace=True)
     return df
