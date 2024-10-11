@@ -1,0 +1,24 @@
+{
+    "template": {
+        "text": "Add Markdown text. \n Use newline to break."
+    },
+    "overview":{
+        "text": "Click each tab to load a different report page.\n Refresh the page if needed to get the latest nightly update."
+    },
+    "discrepancies":{
+        "text": "These are cases that are flagged for attention; note that in some cases BIDS conversion may be in progress."
+    },
+    "completions":{
+        "text": "This panel shows completion rates of individual scans (top) and combinations of scans (bottom)."
+    },
+    "pie":{
+        "text": "The graphs here show quality levels across sites and scans."
+    },
+    "heatmap":{
+        "text": "This scan-level overview is currently being overhauled."
+    },
+    "cuff":{
+        "text": "This panel shows the individually determined inflatable cuff pressure used in each Cuff1 fMRI scan.\n Note that Cuff2 uses a standard pressure level (120 mmHg)."
+    }
+}
+
