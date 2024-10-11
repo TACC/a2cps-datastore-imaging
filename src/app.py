@@ -18,6 +18,7 @@ from styling import *
 
 import logging
 
+
 # Bar Chart options
 bar_chart_options = {'None':'None', 'MCC':'mcc', 'Site':'site','Visit':'ses','Scan':'scan'}
 
@@ -62,6 +63,40 @@ icols = list(scan_dict.keys())
 icols2 = list(scan_dict.values())
 
 color_mapping_list = [(0.0, 'white'),(0.1, 'lightgrey'),(0.25, 'red'),(0.5, 'orange'),(0.75, 'yellow'),(1.0, 'green')]
+# ---------------------------------
+#   Data ETL
+# ---------------------------------
+
+release1_ids = list(pd.read_csv('assets/DataFreeze_1_ids.csv').subject_id)
+release2_ids = list(pd.read_csv('assets/DataFreeze_2_ids.csv').subject_id)
+
+def relative_date(nDays):
+    today = datetime.today()
+    relativeDate = (today - pd.Timedelta(days=nDays)).date()
+    return relativeDate
+
+def filter_imaging_by_date(imaging_df, date_col, start_date = None, end_date = None):
+    '''Filter the imaging datatable using:
+    start_date: select imaging records acquired on or after this date
+    end_date: select imaging records acquired on or before this date'''
+    filtered_imaging = imaging_df.copy()
+    filtered_imaging[date_col] = pd.to_datetime(filtered_imaging[date_col]).dt.date
+    
+    if start_date and isinstance(start_date, date):
+        filtered_imaging = filtered_imaging[filtered_imaging[date_col] >= start_date]
+
+    if end_date and isinstance(end_date, date):
+        filtered_imaging = filtered_imaging[filtered_imaging[date_col] <= end_date]
+
+    return filtered_imaging
+    
+    
+def filter_by_release(imaging, release_list):
+    ''' Filter imaging list to only include the V1 visit for subjects from specific releases. '''
+    filtered_imaging = imaging.copy()
+    filtered_imaging = filtered_imaging[(filtered_imaging['subject_id'].isin(release_list)) & (filtered_imaging['visit']=='V1') ]
+    
+    return filtered_imaging
 
 # ----------------------------------------------------------------------------
 # APP Settings
@@ -81,34 +116,6 @@ app.logger = logging.getLogger("imaging_ui")
 app.logger.handlers = gunicorn_logger.handlers
 app.logger.setLevel(logging.INFO)
 
-# ----------------------------------------------------------------------------
-# DASH HTML COMPONENTS
-# ----------------------------------------------------------------------------
-
-offcanvas_content = html.Div([
-    html.Div([
-        html.P([' '], style={'background-color':'ForestGreen', 'height': '20px', 'width':'20px','float':'left'}),
-        html.P(['no known issues'], style={'padding-left': '30px', 'margin': '0px'})
-    ]),
-    html.Div([
-        html.P([' '], style={'background-color':'Gold', 'height': '20px', 'width':'20px','float':'left', 'clear':'both'}),
-        html.P(['minor variations/issues; correctable'], style={'padding-left': '30px', 'margin': '0px'})
-    ]),
-    html.Div([
-        html.P([' '], style={'background-color':'FireBrick', 'height': '20px', 'width':'20px','float':'left', 'clear':'both'}),
-        html.P(['significant variations/issues; not expected to be comparable'], style={'padding-left': '30px', 'margin': '0px'})
-    ]),
-])
-
-offcanvas = html.Div([
-    dbc.Button("Legend", id="open-offcanvas", n_clicks=0),
-    dbc.Offcanvas(
-        offcanvas_content,
-        id="offcanvas",
-        title="Title",
-        is_open=False,
-    ),
-])
 
 # ----------------------------------------------------------------------------
 # DASH APP COMPONENT FUNCTIONS
@@ -147,9 +154,15 @@ def overview_heatmap(imaging):
     return heatmap_fig
 
 def create_image_overview(imaging_overview):
-    overview_div = html.Div([
+
+    overview = html.Div([
+        dbc.Row([
+            dbc.Col([
+                html.H3('Scan sessions for pre-surgery (V1) and 3 month post surgery (V3) visits'),
+            ])
+        ]),
         dbc.Row([dbc.Col([
-            html.H3('Overview')
+            html.H4('Overview')
         ])]),
         dbc.Row([
             dbc.Col([
@@ -178,8 +191,57 @@ def create_image_overview(imaging_overview):
 
         ]),
 
+        dbc.Row([
+            dbc.Col([html.H4('Quality ratings for individual scans (up to six scans per session: T1, DWI, REST1, CUFF1, CUFF2, REST2)')]),
+        ]),
+        dbc.Row([
+            dbc.Col([
+                html.Div(id='graph_stackedbar_div')
+                ], width=10),
+            dbc.Col([
+                html.H3('Bar Chart Settings'),
+                html.Label('Chart Type'),
+                daq.ToggleSwitch(
+                        id='toggle_stackedbar',
+                        label=['Count','Stacked Percent'],
+                        value=False
+                    ),
+                html.Label('Include unavailable rating records'),
+                daq.ToggleSwitch(
+                        id='toggle_unavailable_data',
+                        label=['No','Yes'],
+                        value=True
+                    ),
+                html.Label('Separate by Visit'),
+                daq.ToggleSwitch(
+                        id='toggle_visit',
+                        label=['Combined','Split'],
+                        value=False
+                    ),
+
+                html.Label('Chart Selection'),
+                dcc.Dropdown(
+                    id='dropdown-bar',
+                options=[
+                    {'label': ' Site and MCC', 'value': 1},
+                    {'label': ' Site', 'value': 2},
+                    {'label': ' MCC', 'value': 3},
+                    {'label': ' Combined', 'value': 4},
+                ],
+                multi=False,
+                clearable=False,
+                value=1
+                ),
+                ],width=2),
+            ]),
     ])
-    return overview_div
+
+        
+
+    return overview
+
+
+
 
 def completions_div(completions_cols, completions_data, imaging):
     completions_div = [
@@ -271,6 +333,24 @@ def build_boxplot(df):
 # ----------------------------------------------------------------------------
 # DASH APP LAYOUT FUNCTION
 # ----------------------------------------------------------------------------
+def load_tab_text():
+    """ 
+    Load content to display in the markdown component of the tabs from the 'tab_text' file in the github repo. 
+    If this isn't accessible, load from a local file.
+    """
+    try:
+        # try to load from github url
+        tab_text_url = "https://raw.githubusercontent.com/TACC/a2cps-datastore-imaging/latest/src/assets/tab_text.json"
+        resp = requests.get(tab_text_url)
+        tab_text = json.loads(resp.text)
+    except:
+        # load from local json file if github url fails
+        tab_text_path = "assets/tab_text.json"
+        with open(tab_text_path) as f:
+            tab_text = json.load(f)
+    print(tab_text)
+    return tab_text
+
 def load_data_source(url_data_path, local_data_path, source):
     imaging, imaging_source = load_imaging(url_data_path, local_data_path, source)
     qc, qc_source = load_qc(url_data_path, local_data_path, source)
@@ -281,12 +361,14 @@ def get_processed_data(imaging, qc):
     completions = get_completions(imaging)
     imaging_overview = roll_up(imaging)
     indicated_received = get_indicated_received(imaging)
+    print(indicated_received.columns)
     ratings = indicated_received.merge(qc, how='outer', left_on = ['Site','Subject','Visit','Scan'], right_on=['site','sub','ses','scan']).fillna('N/A')
 
-    stacked_bar_df = get_stacked_bar_data(qc, 'sub', 'rating', ['site','ses'])
+    # stacked_bar_df = get_stacked_bar_data(qc, 'sub', 'rating', ['site','ses'])
     sites = list(imaging.site.unique())
 
     processed_data_dictionary = {
+        'imaging_length':len(imaging),
         'imaging': imaging.to_dict('records'),
         'qc': qc.to_dict('records'),
         'sites': sites,
@@ -298,29 +380,91 @@ def get_processed_data(imaging, qc):
 
     return processed_data_dictionary
 
-def get_filtered_data_store(raw_data_store, filter_type=None, start_date: datetime = None, end_date = None):
+def get_report_data_store(raw_data_store, selection = None, start_date: datetime = None, end_date = None):
     imaging = pd.DataFrame.from_dict(raw_data_store['imaging'])
     qc = pd.DataFrame.from_dict(raw_data_store['qc'])
 
     if imaging.empty or qc.empty:
+        print('empty')
         completions = pd.DataFrame()
         imaging_overview =  pd.DataFrame()
         indicated_received =  pd.DataFrame()
-        stacked_bar_df =  pd.DataFrame()
+        # stacked_bar_df =  pd.DataFrame()
         sites = []
     else:
-        if filter_type:
-            if filter_type == 'id_list' and isinstance(filter_type, list):
-                imaging = imaging[imaging['subject_id'].isin(filter_type)]
-            else:
-                imaging = filter_imaging_by_date(imaging, filter_type=None, start_date = start_date, end_date = end_date)
-        else:
+        if not selection or selection =='all':
             imaging = imaging
-        qc = filter_qc(qc, imaging)
+            qc = qc 
+        else:
+            if selection == 'release 1':    
+                imaging = filter_by_release(imaging, release1_ids)
+
+            elif selection == 'release 2':    
+                imaging = filter_by_release(imaging, release2_ids)
+
+            else:    
+                startDate = datetime.strptime(start_date, '%Y-%m-%d').date()
+                endDate = datetime.strptime(end_date, '%Y-%m-%d').date()
+                imaging = filter_imaging_by_date(imaging, 'acquisition_week', startDate, endDate)
+            # Filter qc by the subject IDs in the image filter
+            qc = filter_qc(qc, imaging)
 
     processed_data_dictionary = get_processed_data(imaging, qc)
 
     return processed_data_dictionary
+
+def generate_missing_qc(imaging, qc):
+    # Get complete list of scans that would be expected
+    scan_types = ['CUFF1', 'CUFF2', 'DWI', 'REST1', 'REST2', 'T1w']
+    scan_types_df = pd.DataFrame(scan_types, columns=['scan'])
+
+    # Select needed cols from imaging and rename cols
+    imaging_cols = ['site','subject_id', 'visit']
+    imaging_qc = imaging[imaging_cols].copy()
+    imaging_qc.columns = ['site', 'sub', 'ses']
+
+    # Outer cross imaging with scan types for full expected list
+    imaging_qc = imaging_qc.merge(scan_types_df, how='cross')
+
+    # Merge with ratings data from qc
+    full_ratings = imaging_qc.merge(qc, on=['site', 'sub', 'ses','scan'], how='outer')
+
+    # Fill NaN ratings withs 'unavailable'
+    full_ratings.fillna({"rating": "unavailable"}, inplace = True)
+    
+    return full_ratings
+
+##TO DO: move this upstream to datastore
+def generate_raw_data_dict(data_source, data_date, imaging_df, qc_df):
+    imaging_dtypes_dict = {
+        "site":"category",
+        "visit":"category",
+        }   
+    imaging_df = imaging_df.astype(dtype= imaging_dtypes_dict)
+    sites = imaging_df.site.unique()
+
+    qc_dtypes_dict = {
+        "site":"category",
+        "ses":"category",
+        "scan":"category",
+        "rating":"category",
+        }
+    qc_df = qc_df.astype(dtype= qc_dtypes_dict)
+    qc_df["rating"] = qc_df["rating"].cat.add_categories("unavailable")
+
+    full_qc = generate_missing_qc(imaging_df, qc_df)
+
+    raw_data_dictionary = {
+        'date': data_date,
+        'imaging': imaging_df.to_dict('records'),
+        'qc': full_qc.to_dict('records'),
+        'imaging_source': data_source,
+        'qc_source': data_source,
+        'sites': sites,
+    }
+
+    return raw_data_dictionary
+
 
 def load_imaging_api(api_url):
     api_address = api_url + 'imaging'
@@ -342,29 +486,41 @@ def load_imaging_api(api_url):
     qc = api_json['data']['qc']
 
     imaging_df = pd.DataFrame.from_dict(imaging)
-    sites = list(imaging_df.site.unique())
+    qc_df = pd.DataFrame.from_dict(qc) 
+    # imaging_dtypes_dict = {
+    #     "site":"category",
+    #     "visit":"category",
+    #     }   
+    # imaging_df = imaging_df.astype(dtype= imaging_dtypes_dict)
+    # print('imaging columns:', imaging_df.dtypes)
 
-    raw_data_dictionary = {
-        'date': data_date,
-        'imaging': imaging,
-        'qc': qc,
-        'imaging_source': 'api',
-        'qc_source': 'api',
-        'sites': sites,
-    }
+    # # 
 
+    # sites = list(imaging_df.site.unique())
+    
+    # raw_data_dictionary = {
+    #     'date': data_date,
+    #     'imaging': imaging,
+    #     'qc': qc,
+    #     'imaging_source': 'api',
+    #     'qc_source': 'api',
+    #     'sites': sites,
+    # }
+    raw_data_dictionary = generate_raw_data_dict('api', data_date, imaging_df, qc_df)
+    
     return raw_data_dictionary
 
 def local_data_as_dict(imaging, qc, LOCAL_DATA_DATE):
-    sites = list(imaging.site.unique())
-    raw_data_dictionary = {
-        'date': LOCAL_DATA_DATE,
-        'imaging': imaging.to_dict('records'),
-        'qc': qc.to_dict('records'),
-        'imaging_source': 'local',
-        'qc_source': 'local',
-        'sites': sites,
-    }
+    raw_data_dictionary = generate_raw_data_dict('local', LOCAL_DATA_DATE, imaging, qc)
+    # sites = list(imaging.site.unique())
+    # raw_data_dictionary = {
+    #     'date': LOCAL_DATA_DATE,
+    #     'imaging': imaging.to_dict('records'),
+    #     'qc': qc.to_dict('records'),
+    #     'imaging_source': 'local',
+    #     'qc_source': 'local',
+    #     'sites': sites,
+    # }
     return raw_data_dictionary
 
 def serve_raw_data_store(url_data_path, local_data_path, source):
@@ -374,6 +530,10 @@ def serve_raw_data_store(url_data_path, local_data_path, source):
         sites = []
     else:
         sites = list(imaging.site.unique())
+
+    # Add 'unavailable' records to qc as needed
+
+    # qc_complete = generate_missing_qc(imaging, qc)
 
     raw_data_dictionary = {
         'imaging': imaging.to_dict('records'),
@@ -385,12 +545,14 @@ def serve_raw_data_store(url_data_path, local_data_path, source):
     return raw_data_dictionary
 
 def create_data_stores(source, raw_data_dictionary):
+    tab_text = load_tab_text()
     sites = raw_data_dictionary['sites']
     data_date = raw_data_dictionary['date']
     data_stores = html.Div([
         dcc.Store(id='session_data',  data = raw_data_dictionary), #storage_type='session',
+        dcc.Store(id='tab_text', data=tab_text),
+        dcc.Store(id='cache_data'),
         dcc.Store(id='report_data'),
-        dcc.Store(id='filtered_data'),
         # html.P('Imaging Source: ' + data_dictionary['imaging_source']),
         # html.P('QC Source: ' + data_dictionary['qc_source']),
         create_content(source, data_date, sites)
@@ -411,22 +573,39 @@ def create_content(source, data_date, sites):
                         dbc.Row([
                             dbc.Col([
                                 html.H1('Imaging Overview Report' #, style={'textAlign': 'center'}
-                                )
+                                ), 
+                                html.Div(id='test-row')
                             ], width=6),
                             dbc.Col([
-                                html.P('Report Dates'),
-                                html.Div(
+                                html.Div([
                                     dcc.Dropdown(
-                                        id='dropdown-date-range-selector',
-                                       options=[
-                                           {'label': 'All records', 'value': 'all'},
-                                           {'label': 'Initial ~100 subjects', 'value': 'initial'},
-                                           {'label': 'Last Month', 'value': 'month'},
-                                           {'label': 'Last Week', 'value': 'week'},
-                                       ],
-                                       value='all'
+                                        id='dropdown-date-range',
+                                        options=[
+                                            {'label': 'All records', 'value': 'all'},
+                                            {'label': 'Custom Date Range', 'value': 'custom'},
+                                            {'label': 'Data Release 1', 'value': 'release 1'},
+                                            {'label': 'Data Release 2', 'value': 'release 2'},
+                                            {'label': 'Recent (15 days)', 'value': '15'},
+                                            {'label': '1 Month (30 days)', 'value': '30'},
+                                            {'label': '6 Months (180 days)', 'value': '180'},
+                                        ],
+                                        value='all'
                                     ),
-                                ),
+                                    html.Div(id='report-dates'),
+                                    html.Div([
+                                        dcc.DatePickerRange(
+                                            id='date-picker-range',
+                                            min_date_allowed=date(2021, 3, 29),
+                                            start_date=date(2021, 3, 29),
+                                            end_date = datetime.today().date(),
+                                            # style={
+                                            #     'display': 'none'
+                                            # },
+                                        ),  
+                                    ]),
+                                    html.Button('Re-load Report', id='btn-selections', n_clicks=0),
+                                    html.Div(id='datediv'),
+                            ]),
                             ], width=3)
                         ], justify='end', align='center'
                         ),
@@ -456,14 +635,14 @@ def create_content(source, data_date, sites):
 
                         dbc.Row([
                             dbc.Col([
-                                dbc.Tabs(id="tabs", active_tab='tab-overview', children=[
-                                    dbc.Tab(label='Overview', tab_id='tab-overview'),
-                                    dbc.Tab(label='Discrepancies', tab_id='tab-discrepancies'),
-                                    dbc.Tab(label='Completions', tab_id='tab-completions'),
-                                    dbc.Tab(label='Pie Charts', tab_id='tab-pie'),
-                                    dbc.Tab(label='Heat Map', tab_id='tab-heatmap'),
-                                    dbc.Tab(label='Cuff Pressure', tab_id='tab-cuff'),
-                                ]),
+                                dbc.Tabs(id="tabs", children=[
+                                dbc.Tab(label='Overview', tab_id='tab-overview'),
+                                dbc.Tab(label='Completions', tab_id='tab-completions'),
+                                dbc.Tab(label='Pie Charts', tab_id='tab-pie'),
+                                dbc.Tab(label='Heat Map', tab_id='tab-heatmap'),
+                                dbc.Tab(label='Cuff Pressure', tab_id='tab-cuff'),
+                                dbc.Tab(label='Discrepancies', tab_id='tab-discrepancies'),
+                            ]),
                             ],width=10),
                             dbc.Col([
                                 dcc.Dropdown(
@@ -535,100 +714,112 @@ app.layout = serve_layout
 # ----------------------------------------------------------------------------
 # DATA CALLBACKS
 # ----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
+# Date Range / Filter type
+# ----------------------------------------------------------------------------
+
+
 @app.callback(
-    Output('filtered_data', 'data'),
-    Input('session_data', 'data')
+    Output("date-picker-range", "style"),
+    Output("report-dates", "style"),
+    Input("dropdown-date-range", "value"),
+    State("date-picker-range", "start_date"),
+    State("date-picker-range", "end_date"),
+    )
+def update_visibility(customValue, startDate, endDate):    
+    visible = {'display': 'block'}
+    hidden = {'display': 'none'}
+    if customValue == 'custom':
+       return visible, hidden
+    else:
+        return hidden, visible
+
+@app.callback(
+    Output("date-picker-range", "start_date"),
+    Output("date-picker-range", "end_date"),   
+    Output("report-dates", "children"),
+    Input("dropdown-date-range", "value"),
+    )
+def update_date_range(customValue):
+    full_range_options = ['all','custom']
+    start_date=date(2021, 3, 29)
+    end_date = datetime.today().date()
+
+    if customValue and customValue.isnumeric():
+        start_date = relative_date(int(customValue))
+    
+    print(start_date, end_date)
+    report_dates = 'Date Range: ' + start_date.strftime("%m/%d/%Y") + ' to ' + end_date.strftime("%m/%d/%Y")
+    return start_date, end_date, report_dates
+
+# @app.callback(
+#     Output('cache_data', 'data'),
+#     Output('datediv','children'),
+#     Input('btn-selections','clicks'),
+#     State('session_data', 'data'),
+#     State("dropdown-date-range", "value"),
+#     State("date-picker-range", "start_date"),
+#     State("date-picker-range", "end_date"),
+# )
+# def filtered(clicks, raw_data, selection, startDate, endDate):
+#     cache_data = {}
+#     print(selection, startDate, endDate)
+#     children = html.P("I'm here!")
+#     return cache_data, children
+
+# TO DO: Switch input to Re-load report button
+@app.callback(
+    Output('report_data', 'data'),
+    Input('btn-selections','n_clicks'),
+    State('session_data', 'data'),
+    State("dropdown-date-range", "value"),
+    State("date-picker-range", "start_date"),
+    State("date-picker-range", "end_date")
 )
-def filtered(raw_data):
-    filtered_data = get_filtered_data_store(raw_data)
-    return filtered_data
+def filtered(clicks, rawData, selection, startDate, endDate):
+    report_data = get_report_data_store(rawData, selection, startDate, endDate)
+    return report_data
 
 # Filter
-@app.callback(
-    Output('test-row','children'),
-    Input('filtered_data', 'data')
-)
-def see_filtering(filtered_data):
-    kids = html.Div()
-    # kids = html.Div(json.dumps(filtered_data['qc']))
-    return kids
+# @app.callback(
+#     Output('test-row','children'),
+#     Input('report_data', 'data')
+# )
+# def see_filtering(report_data):
+#     # kids = html.Div(report_data['imaging_length'])
+#     # kids = html.Div(json.dumps(report_data['qc']))
+#     return kids
 
-@app.callback(Output("tab-content", "children"),
+@app.callback(
+    Output("tab-content", "children"),
     Output('dropdown-sites-col','style'),
-    Input("tabs", "active_tab"))
-def switch_tab(at):
-    if at == "tab-overview":
+    Input("tabs", "active_tab"),
+    State("tab_text","data")
+    )    
+def switch_tab(at, tab_text):
+    if at =="":
+        return html.H3("There are no records for this time frame.  Please select a different date range and reload."), {'display': 'none'}
+    elif at == "tab-overview":
         overview = dcc.Loading(
                     id="loading-overview",
-                    children=[
-                        html.Div([
-            dbc.Row([
-                dbc.Col([
-                    html.H3('Scan sessions for pre-surgery (V1) and 3 month post surgery (V3) visits'),
-                    html.Div(id='overview_div')
-                ])
-            ]),
-            dbc.Row([
-                dbc.Col([html.H3('Quality ratings for individual scans (up to six scans per session: T1, DWI, REST1, CUFF1, CUFF2, REST2)')]),
-            ]),
-            dbc.Row([
-                dbc.Col([
-                    html.Div(id='graph_stackedbar_div')
-                    ], width=10),
-                dbc.Col([
-                    html.H3('Bar Chart Settings'),
-                    html.Label('Chart Type'),
-                    daq.ToggleSwitch(
-                            id='toggle_stackedbar',
-                            label=['Count','Stacked Percent'],
-                            value=False
-                        ),
-                    html.Label('Separate by Visit'),
-                    daq.ToggleSwitch(
-                            id='toggle_visit',
-                            label=['Combined','Split'],
-                            value=False
-                        ),
-
-                    html.Label('Chart Selection'),
-                    dcc.Dropdown(
-                        id='dropdown-bar',
-                       options=[
-                           {'label': ' Site and MCC', 'value': 1},
-                           {'label': ' Site', 'value': 2},
-                           {'label': ' MCC', 'value': 3},
-                           {'label': ' Combined', 'value': 4},
-                       ],
-                       multi=False,
-                       clearable=False,
-                       value=1
-                    ),
-                    ],width=2),
-                ]),
-        ])
-                    ],
                     type="circle",
+                    children = [
+                        dbc.Row([
+                            dbc.Col([
+                                dcc.Markdown(tab_text['overview']['text']),
+                                html.Div(id='overview_section')
+                            ])
+                        ]),
+                    ]
                 )
         style = {'display': 'none'}
         return overview, style
-    elif at == "tab-discrepancies":
-        discrepancies = dcc.Loading(
-                    id="loading-discrepancies",
-                    children=[
-                        html.Div([
-            dbc.Row([
-                dbc.Col([html.Div(id='discrepancies_section')])
-            ]),
-        ])
-                    ],
-                    type="circle",
-                )
-        return discrepancies, {'display': 'block'}
     elif at == "tab-completions":
         completions = dcc.Loading(
                     id="loading-completions",
                     children=[
                         html.Div([
+                            html.Div( dcc.Markdown(tab_text['completions']['text'])),
                             html.Div(id='completions_section')
                         ])
                     ],
@@ -639,18 +830,33 @@ def switch_tab(at):
         pies = dcc.Loading(
                     id="loading-pie",
                     children=[
+                        html.Div( dcc.Markdown(tab_text['pie']['text'])),
                         html.Div(id='pie_charts')
                         ],
                     type="circle",
                 )
         return pies, {'display': 'block'}
     elif at == "tab-heatmap":
-        heatmap = html.Div(id='heatmap')
+        heatmap = dcc.Loading(
+                    id="loading-heatmap",
+                    children=[
+                        
+                        html.Div( dcc.Markdown(tab_text['heatmap']['text'])),
+                        html.Div([
+                            dbc.Row([
+                                dbc.Col([html.Div(id='heatmap')])
+                            ]),
+                        ])
+                    ],
+                type="circle",
+            )
         return heatmap, {'display': 'block'}
     elif at == "tab-cuff":
         cuff = dcc.Loading(
-                    id="loading-heatmap",
+                    id="loading-cuff",
                     children=[
+                        
+                        html.Div( dcc.Markdown(tab_text['cuff']['text'])),
                         html.Div([
                             dbc.Row([
                                 dbc.Col([html.Div(id='cuff_section')])
@@ -660,85 +866,118 @@ def switch_tab(at):
                 type="circle",
             )
         return cuff, {'display': 'block'}
+    elif at == "tab-discrepancies":
+            discrepancies = dcc.Loading(
+                        id="loading-discrepancies",
+                        children=[
+                            html.Div([
+                                dbc.Row([
+                                    dbc.Col([
+                                        dcc.Markdown(tab_text['discrepancies']['text'])
+                                    ])
+                                ]),
 
-    return html.P("This shouldn't ever be displayed...")
+                                dbc.Row([
+                                    dbc.Col([html.Div(id='discrepancies_section')])
+                                ]),
+                            ])
+                        ],
+                        type="circle",
+                    )
+            return discrepancies, {'display': 'block'}
+
+    return html.H3("There are no records for this time frame.  Please select a different date range and reload."), {'display': 'none'}
 # Define callback to update graph_stackedbar
 
+## Create common 'no data for this date range' 
+no_data_div = html.Div(
+    html.P(
+        'There is no available data for this date range.  please pick new dates and re-load the report'
+    )
+)
 # Toggle Stacked bar toggle_stackedbar graph_stackedbar
 @app.callback(
-    Output('overview_div', 'children'),
-    Input('filtered_data', 'data')
+    Output('overview_section', 'children'),
+    Input('report_data', 'data')
 )
 def update_overview_section(data):
-    imaging_overview = pd.DataFrame.from_dict(data['imaging_overview'])
-    return create_image_overview(imaging_overview)
+    if data['imaging_length'] > 0:
+        imaging_overview = pd.DataFrame.from_dict(data['imaging_overview'])
+        return create_image_overview(imaging_overview)
+    else:
+        return no_data_div
 
 @app.callback(
     Output('discrepancies_section', 'children'),
-    Input('filtered_data', 'data')
+    Input('report_data', 'data')
 )
 def update_discrepancies_section(data):
     # Load imaging data from data store
-     imaging = pd.DataFrame.from_dict(data['imaging'])
-     df = pd.DataFrame.from_dict(data['indicated_received'])
+    imaging = pd.DataFrame.from_dict(data['imaging'])
+    df = pd.DataFrame.from_dict(data['indicated_received'])
 
-     # Rescinded patients in imaging
-     cols = ['site', 'subject_id', 'visit',  'dicom',
-       'bids', 'bids_validation', 'acquisition_week', 'Surgery Week']
-     rescinded_imaging = imaging[imaging['subject_id'].isin(list(rescinded['main_record_id']))][cols]
-     rescind_msg = 'Subjects who rescinded prior to ' + rescinded_date + ' but have records in the imaging file'
+    # Get records missing acquisition dates
+    missing_dates_cols = ['site', 'subject_id', 'visit','dicom','bids', 'acquisition_week', 'Surgery Week'] 
+    missing_dates = imaging[imaging.acquisition_week.isnull()][missing_dates_cols]
 
-     # Get data for tables
-     # df = get_indicated_received(imaging)
-     df = pd.DataFrame.from_dict(data['indicated_received'])
-     index_cols = ['Site','Subject','Visit']
-     no_bids = df[df['BIDS']==0].sort_values(by=index_cols+['Scan'])
-     mismatch = df[(df['DICOM']==1) & (df['Indicated'] != df['Received'])]
+    # Rescinded patients in imaging
+    cols = ['site', 'subject_id', 'visit',  'dicom',
+    'bids', 'acquisition_week', 'Surgery Week']
+    rescinded_imaging = imaging[imaging['subject_id'].isin(list(rescinded['main_record_id']))][cols]
+    rescind_msg = 'Subjects who rescinded prior to ' + rescinded_date + ' but have records in the imaging file'
 
-     no_bids_table = dt.DataTable(
-                    id='tbl-no_bids', data=no_bids.to_dict('records'),
-                    columns=[{"name": i, "id": i} for i in no_bids.columns],
-                    filter_action="native",
-                    sort_action="native",
-                    sort_mode="multi",
-                    )
+    # Get data for tables
+    # df = get_indicated_received(imaging)
+    df = pd.DataFrame.from_dict(data['indicated_received'])
+    index_cols = ['Site','Subject','Visit']
+    no_bids = df[df['BIDS']==0].sort_values(by=index_cols+['Scan'])
+    mismatch = df[(df['DICOM']==1) & (df['Indicated'] != df['Received'])]
 
-     mismatch_table = dt.DataTable(
-                    id='tbl-mismatch', data=mismatch.to_dict('records'),
-                    columns=[{"name": i, "id": i} for i in mismatch.columns],
-                    filter_action="native",
-                    sort_action="native",
-                    sort_mode="multi",
-                    )
+    missing_acquisition_table = dt.DataTable(
+                id='tbl-no_acquisition', data=missing_dates.to_dict('records'),
+                columns=[{"name": i, "id": i} for i in missing_dates.columns],
+                filter_action="native",
+                sort_action="native",
+                sort_mode="multi",
+                )
+    
+    no_bids_table = dt.DataTable(
+                id='tbl-no_bids', data=no_bids.to_dict('records'),
+                columns=[{"name": i, "id": i} for i in no_bids.columns],
+                filter_action="native",
+                sort_action="native",
+                sort_mode="multi",
+                )
 
-     rescinded_table = dt.DataTable(
-                    id='tbl-rescinded', data=rescinded_imaging.to_dict('records'),
-                    columns=[{"name": i, "id": i} for i in rescinded_imaging.columns],
-                    filter_action="native",
-                    sort_action="native",
-                    sort_mode="multi",
-                    )
+    mismatch_table = dt.DataTable(
+                id='tbl-mismatch', data=mismatch.to_dict('records'),
+                columns=[{"name": i, "id": i} for i in mismatch.columns],
+                filter_action="native",
+                sort_action="native",
+                sort_mode="multi",
+                )
 
 
-     discrepancies_div = html.Div([
-             dbc.Col([
-                 html.H3("BIDS value = 0"),
-                 no_bids_table
-             ],width=6),
-           dbc.Col([
-               html.H3('Records with mismatch between indicated and received'),
-               mismatch_table
-           ],width=6),
-           dbc.Col([
-               html.H3(rescind_msg),
-               rescinded_table
-           ],width=6),
-     ])
-     return discrepancies_div
+    discrepancies_div = html.Div([
+        dbc.Col([
+            html.H3("Data Missing Acquisition Week Field"),
+            html.P("This information only avilable when 'All records' is selected.  These records are filtered out in other views." ),
+            missing_acquisition_table
+        ],width=6),
+        dbc.Col([
+            html.H3("BIDS value = 0"),
+            no_bids_table
+        ],width=6),
+        dbc.Col([
+            html.H3('Records with mismatch between indicated and received'),
+            mismatch_table
+        ],width=6),
+    ])
+    return discrepancies_div
 
 @app.callback(
     Output('cuff_section', 'children'),
-    Input('filtered_data', 'data')
+    Input('report_data', 'data')
 )
 def update_cuff_section(data):
     # Load imaging data from data store
@@ -754,12 +993,13 @@ def update_cuff_section(data):
 
 @app.callback(
     Output('graph_stackedbar_div', 'children'),
-    Input('filtered_data', 'data'),
+    Input('report_data', 'data'),
     Input('toggle_stackedbar', 'value'),
+    Input('toggle_unavailable_data', 'value'),
     Input('toggle_visit', 'value'),
     Input('dropdown-bar', 'value'),
 )
-def update_stackedbar(filtered_data, type, visit, chart_selection):
+def update_stackedbar(report_data, type, unavailable_data, visit, chart_selection):
     global mcc_dict
     # False = Count and True = Percent
     # return json.dumps(mcc_dict)
@@ -768,7 +1008,14 @@ def update_stackedbar(filtered_data, type, visit, chart_selection):
     else:
         type = 'Count'
 
-    qc = pd.DataFrame.from_dict(filtered_data['qc'])
+    # Filter data
+    qc = pd.DataFrame.from_dict(report_data['qc'])
+
+    if unavailable_data:
+        plot_df = qc
+    else:
+        plot_df = qc[qc.rating!='unavailable']
+    # Set figure settings
     count_col='sub'
     color_col = 'rating'
 
@@ -777,27 +1024,27 @@ def update_stackedbar(filtered_data, type, visit, chart_selection):
             facet_row = 'ses'
         else:
             facet_row = None
-        fig = bar_chart_dataframe(qc, mcc_dict, count_col, 'site', color_col, 'mcc', facet_row,  chart_type=type)
+        fig = bar_chart_dataframe(plot_df, mcc_dict, count_col, 'site', color_col, 'mcc', facet_row,  chart_type=type)
     else:
         if visit:
             x_col = 'ses'
         else:
             x_col = None
         if chart_selection == 2:
-            fig = bar_chart_dataframe(qc, mcc_dict, count_col, x_col, color_col, 'site', chart_type=type)
+            fig = bar_chart_dataframe(plot_df, mcc_dict, count_col, x_col, color_col, 'site', chart_type=type)
 
         elif chart_selection == 3:
-            fig = bar_chart_dataframe(qc, mcc_dict, count_col, x_col, color_col, 'mcc', chart_type=type)
+            fig = bar_chart_dataframe(plot_df, mcc_dict, count_col, x_col, color_col, 'mcc', chart_type=type)
 
         else:
-            fig = bar_chart_dataframe(qc, mcc_dict, count_col, x_col, color_col, chart_type=type)
+            fig = bar_chart_dataframe(plot_df, mcc_dict, count_col, x_col, color_col, chart_type=type)
 
     return [html.P(visit), dcc.Graph(id='graph_stackedbar', figure=fig)]
 
 @app.callback(
     Output('completions_section', 'children'),
     Input('dropdown-sites', 'value'),
-    State('filtered_data', 'data')
+    State('report_data', 'data')
 )
 def update_image_report(sites, data):
     imaging = pd.DataFrame.from_dict(data['imaging'])
@@ -815,12 +1062,12 @@ def update_image_report(sites, data):
 @app.callback(
     Output('pie_charts', 'children'),
     Input('dropdown-sites', 'value'),
-    Input('filtered_data', 'data'),
+    Input('report_data', 'data'),
     State('dropdown-sites', 'options')
 )
-def update_pie(sites, filtered_data, options):
+def update_pie(sites, report_data, options):
     sites_list = sites.split(",")
-    ratings = pd.DataFrame.from_dict(filtered_data['ratings'])
+    ratings = pd.DataFrame.from_dict(report_data['ratings'])
     site_label = [x['label'] for x in options if x['value'] == sites]
     pie_df = ratings[ratings['Site'].isin(sites_list)]
 
@@ -855,7 +1102,7 @@ def update_pie(sites, filtered_data, options):
 @app.callback(
     Output('heatmap', 'children'),
     Input('dropdown-sites', 'value'),
-    State('filtered_data', 'data')
+    Input('report_data', 'data')
 )
 def update_heatmap(sites, data):
     global color_mapping_list

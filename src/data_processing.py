@@ -15,28 +15,130 @@ from config_settings import *
 
 
 # ----------------------------------------------------------------------------
-# Filter by date
+# Imaging Data Cleanup
 # ----------------------------------------------------------------------------
-def filter_imaging_by_date(imaging_df, start_date: datetime = None, end_date = None):
+
+def clean_imaging(imaging_full):
+    ''' Clean up the incoming imaging dataframe'''
+    # Imaging columns actually used.  Subset to just these portion of the data. 
+    # Dictionary keys = columns used, dictionary value = new column name
+    imaging_columns_dict = {
+        'site': 'site',
+        'subject_id': 'subject_id',
+        'visit': 'visit',
+        'acquisition_week': 'acquisition_week',
+        'Surgery Week':'Surgery Week',
+        'bids':'bids',
+        'dicom':'dicom', 
+        'T1 Indicated':'T1',
+        'DWI Indicated':'DWI',
+        '1st Resting State Indicated':'REST1',
+        'fMRI Individualized Pressure Indicated':'CUFF1',
+        'fMRI Standard Pressure Indicated':'CUFF2',
+        '2nd Resting State Indicated':'REST2',
+        'T1 Received':'T1 Received',
+        'DWI Received':'DWI Received',
+        '1st Resting State Received':'REST1 Received',
+        'fMRI Individualized Pressure Received':'CUFF1 Received',
+        'fMRI Standard Pressure Received':'CUFF2 Received',
+        '2nd Resting State Received':'REST2 Received',
+        'Cuff1 Applied Pressure':'Cuff1 Applied Pressure'
+}
+    
+    imaging_cols = list(imaging_columns_dict.keys()) # Get list of columns to keep
+    imaging = imaging_full[imaging_cols].copy() # Copy subset of imaging dataframe
+    imaging.rename(columns=imaging_columns_dict, inplace=True) # Rename columns
+    imaging = imaging.replace('na', np.nan) # Replace 'na' string with actual null value
+    imaging['completions_id'] = imaging.apply(lambda x: str(x['subject_id']) + x['visit'],axis=1, result_type='reduce') # Add completions id value from combination of subject ID and visit
+    
+    return imaging
+
+def clean_qc(qc_full):
+    ''' Clean up the incoming qc dataframe'''
+    qc_columns_dict = {
+            'site':'site', 
+            'sub': 'subject_id',
+            'ses': 'ses',
+            'scan':'scan',
+            'rating': 'rating'
+        }
+    qc_cols = list(qc_columns_dict.keys()) # Get list of columns to keep
+    qc = qc_full[qc_cols].copy() # Copy subset of imaging dataframe
+    qc.rename(columns=qc_columns_dict, inplace=True) # Rename columns
+    
+    return qc
+
+def generate_missing_qc(imaging, qc):
+    # Get complete list of scans that would be expected
+    scan_types = ['CUFF1', 'CUFF2', 'DWI', 'REST1', 'REST2', 'T1w']
+    scan_types_df = pd.DataFrame(scan_types, columns=['scan'])
+
+    # Select needed cols from imaging and rename cols
+    imaging_cols = ['site','subject_id', 'visit']
+    imaging_qc = imaging[imaging_cols].copy()
+    imaging_qc.columns = ['site', 'sub', 'ses']
+
+    # Outer cross imaging with scan types for full expected list
+    imaging_qc = imaging_qc.merge(scan_types_df, how='cross')
+
+    # Merge with ratings data from qc
+    full_ratings = imaging_qc.merge(qc, on=['site', 'sub', 'ses','scan'], how='outer')
+
+    # Fill NaN ratings withs 'unavailable'
+    full_ratings.fillna({"rating": "unavailable"}, inplace = True)
+    
+    return full_ratings
+
+# ----------------------------------------------------------------------------
+# Filter imaging by date
+# ----------------------------------------------------------------------------
+def relative_date(nDays):
+    today = datetime.today()
+    relativeDate = (today - pd.Timedelta(days=nDays)).date()
+    return relativeDate
+
+def filter_imaging_by_date(imaging_df, start_date = None, end_date = None):
     '''Filter the imaging datatable using:
     start_date: select imaging records acquired on or after this date
     end_date: select imaging records acquired on or before this date'''
     filtered_imaging = imaging_df.copy()
-    filtered_imaging['acquisition_week']= pd.to_datetime(filtered_imaging['acquisition_week'], errors = 'coerce')
-
-    if start_date and isinstance(start_date, datetime):
+    # filtered_imaging['acquisition_week']= pd.to_datetime(filtered_imaging['acquisition_week'], errors = 'coerce')
+    filtered_imaging['acquisition_week'] = pd.to_datetime(filtered_imaging['acquisition_week']).dt.date
+    
+    if start_date and isinstance(start_date, date):
         filtered_imaging = filtered_imaging[filtered_imaging['acquisition_week'] >= start_date]
 
-    if end_date and isinstance(end_date, datetime):
+    if end_date and isinstance(end_date, date):
         filtered_imaging = filtered_imaging[filtered_imaging['acquisition_week'] <= end_date]
 
     return filtered_imaging
 
+
+# ----------------------------------------------------------------------------
+# Filter imaging by data release
+# ----------------------------------------------------------------------------
+
+def filter_by_release(imaging, release_list):
+    ''' Filter imaging list to only include the V1 visit for subjects from specific releases. '''
+    filtered_imaging = imaging.copy()
+    filtered_imaging = filtered_imaging[(filtered_imaging['subject_id'].isin(release_list)) & (filtered_imaging['visit']=='V1') ]
+    
+    return filtered_imaging
+
+# ----------------------------------------------------------------------------
+# Filter qc by filtered imaging
+# ----------------------------------------------------------------------------
+
 def filter_qc(qc, filtered_imaging):
-    '''Filter qx records to just those subjects / visits in the filtered imaging set'''
-    filt_sub = filtered_imaging[['subject_id','visit']]
-    filt_sub.columns = ['sub','ses']
-    filtered_qc = qc.merge(filt_sub, how = 'left',on = ['sub','ses'])
+    '''Filter qc records to just those subjects / visits in the filtered imaging set'''
+    filtered_qc = qc.copy()
+    filtered_qc.loc[:,'ses'] = filtered_qc['ses'].astype('category')
+    
+    filt_sub = filtered_imaging[['subject_id','visit']].copy()
+    filt_sub.columns = ['sub','ses']    
+    filt_sub.loc[:,'ses'] = filt_sub['ses'].astype('category')
+    
+    filtered_qc = qc.merge(filt_sub, how = 'inner',on = ['sub','ses'])
     return filtered_qc
 
 # ----------------------------------------------------------------------------
@@ -59,50 +161,31 @@ def calculate_overdue(BIDS, visit, surgery_week):
         overdue='No'
     return overdue
 
-def get_indicated_received(imaging_dataframe, validation_column = 'bids_validation', validation_value = 1):
+def get_indicated_received(imaging_dataframe, validation_column = 'bids', validation_value = 1):
     """The get_indicated_received(imaging_dataframe) function takes the imaging log data frame and lengthens the
     table to convert the scan into a variable while preserving columns for the indicated and received value of each scan.
     Validation columns parameter should be a lits of tuples where the first tuple value is the column name and the
     second entry is the value of 'Y' for that column"""
-    df = imaging_dataframe.copy()
+    df = clean_imaging(imaging_dataframe).copy()
 
     # Select columns, and create long dataframes from those columns, pivoting the scan into a variable
-    # Select and pivot indicated columns
-    index_cols = ['site','subject_id','visit','acquisition_week','Surgery Week','bids_validation', 'dicom']
+    index_cols = ['site','subject_id','visit','acquisition_week','Surgery Week','bids', 'dicom']
     index_new = ['Site', 'Subject', 'Visit','Acquisition Week','Surgery Week', 'BIDS','DICOM']
 
-    indicated_cols = ['T1 Indicated',
-           'DWI Indicated',
-           'fMRI Individualized Pressure Indicated',
-           'fMRI Standard Pressure Indicated',
-           '1st Resting State Indicated',
-           '2nd Resting State Indicated']
-
-    received_cols = ['T1 Received',
-       'DWI Received',
-       'fMRI Individualized Pressure Received',
-       'fMRI Standard Pressure Received',
-       '1st Resting State Received',
-       '2nd Resting State Received']
-
-    scan_cols_short = ['T1','DWI','CUFF1','CUFF2','REST1','REST2']
+    # Select and pivot indicated columns
+    indicated_cols = ['T1', 'DWI', 'REST1', 'CUFF1', 'CUFF2', 'REST2']
 
     indicated = df[index_cols + indicated_cols]
-    indicated.columns = index_cols + scan_cols_short
-    indicated = pd.melt(indicated, id_vars=index_cols, value_vars = scan_cols_short)
+    indicated = pd.melt(indicated, id_vars=index_cols, value_vars = indicated_cols)
     indicated.columns = index_new + ['Scan', 'Value']
 
-    # Select and pivot received_cols columns
-    received_cols = ['T1 Received',
-       'DWI Received',
-       'fMRI Individualized Pressure Received',
-       'fMRI Standard Pressure Received',
-       '1st Resting State Received',
-       '2nd Resting State Received']
+    # Select and pivot received_cols columns, renaming the scans so they match
+    received_cols = ['T1 Received', 'DWI Received', 'REST1 Received', 'CUFF1 Received',
+           'CUFF2 Received', 'REST2 Received']
 
     received = df[index_cols + received_cols]
-    received.columns = index_cols + scan_cols_short
-    received = pd.melt(received, id_vars=index_cols, value_vars = scan_cols_short)
+    received.columns = index_cols + indicated_cols
+    received = pd.melt(received, id_vars=index_cols, value_vars = indicated_cols)
     received.columns = index_new + ['Scan', 'Value']
 
     # Merge the indicated and received dataframes into a single dataframe
@@ -118,15 +201,18 @@ def get_indicated_received(imaging_dataframe, validation_column = 'bids_validati
     return combined
 
 
-
 # ----------------------------------------------------------------------------
 # Imaging Overview
 # ----------------------------------------------------------------------------
 def roll_up(imaging):
+    print(imaging.columns)
+    print(len(imaging))
     cols = ['site','visit','subject_id']
-    df = imaging[cols].groupby(['site','visit']).count().reset_index()
+    df = imaging[cols].copy()
+    df = df.groupby(['site','visit']).count().reset_index()
     df = df.pivot(index='site', columns = 'visit', values = 'subject_id')
-    df.loc['All Sites'] = df.sum(numeric_only=True, axis=0)
+    if len(df >0):
+        df.loc['All Sites'] = df.sum(numeric_only=True, axis=0)
     df.loc[:,'Total'] = df.sum(numeric_only=True, axis=1)
     df.reset_index(inplace=True)
     return df
@@ -145,7 +231,7 @@ def get_completions(df):
     icols = list(scan_dict.keys())
     icols2 = list(scan_dict.values())
 
-    df['completions_id'] = df.apply(lambda x: str(x['subject_id']) + x['visit'],axis=1)
+    # df['completions_id'] = df.apply(lambda x: str(x['subject_id']) + x['visit'],axis=1)
     completions = df[['completions_id']+icols].groupby(icols).count().reset_index().rename(columns=scan_dict).rename(columns={'completions_id':'Count'})
     completions['Percent'] = round(100 * completions['Count']/(completions['Count'].sum()),1)
     completions = completions.sort_values(by=['Count'], ascending=False)
