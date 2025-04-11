@@ -99,6 +99,18 @@ def filter_by_release(imaging, release_list):
     return filtered_imaging
 
 # ----------------------------------------------------------------------------
+# Get Release data
+# ----------------------------------------------------------------------------
+def generate_release_data_store(DATASTORE_URL):
+    imaging_releases =  get_api_data(DATASTORE_URL + 'imaging_release')
+    for release in imaging_releases.keys():
+        release_imaging = pd.DataFrame(imaging_releases[release]['data']['imaging'])
+        release_qc = pd.DataFrame(imaging_releases[release]['data']['qc'])
+        release_processed_data = get_processed_data(release_imaging, release_qc)
+        imaging_releases[release]['processed_data'] = release_processed_data
+    return imaging_releases
+
+# ----------------------------------------------------------------------------
 # APP Settings
 # ----------------------------------------------------------------------------
 
@@ -380,6 +392,17 @@ def get_processed_data(imaging, qc):
 
     return processed_data_dictionary
 
+def get_release_data_store(imaging_releases_json):
+    '''Loop through releases and take the data component and process it into a dictionary'''
+    for release in imaging_releases_json.keys():
+        release_imaging = pd.DataFrame(imaging_releases_json[release]['data']['imaging'])
+        release_qc = pd.DataFrame(imaging_releases_json[release]['data']['qc'])
+        release_processed_data = get_processed_data(release_imaging, release_qc)
+        imaging_releases_json[release]['processed_data'] = release_processed_data
+    return imaging_releases_json
+    
+        
+
 def get_report_data_store(raw_data_store, selection = None, start_date: datetime = None, end_date = None):
     imaging = pd.DataFrame.from_dict(raw_data_store['imaging'])
     qc = pd.DataFrame.from_dict(raw_data_store['qc'])
@@ -396,16 +419,9 @@ def get_report_data_store(raw_data_store, selection = None, start_date: datetime
             imaging = imaging
             qc = qc 
         else:
-            if selection == 'release 1':    
-                imaging = filter_by_release(imaging, release1_ids)
-
-            elif selection == 'release 2':    
-                imaging = filter_by_release(imaging, release2_ids)
-
-            else:    
-                startDate = datetime.strptime(start_date, '%Y-%m-%d').date()
-                endDate = datetime.strptime(end_date, '%Y-%m-%d').date()
-                imaging = filter_imaging_by_date(imaging, 'acquisition_week', startDate, endDate)
+            startDate = datetime.strptime(start_date, '%Y-%m-%d').date()
+            endDate = datetime.strptime(end_date, '%Y-%m-%d').date()
+            imaging = filter_imaging_by_date(imaging, 'acquisition_week', startDate, endDate)
             # Filter qc by the subject IDs in the image filter
             qc = filter_qc(qc, imaging)
 
@@ -582,9 +598,10 @@ def create_content(source, data_date, sites):
                                         id='dropdown-date-range',
                                         options=[
                                             {'label': 'All records', 'value': 'all'},
+                                            {'label': 'Release 2.0', 'value': 'imaging_2_0'},
+                                            {'label': 'Release 1.1', 'value': 'imaging_1_1'},
+                                            {'label': 'Release 1.0', 'value': 'imaging_1_0'},
                                             {'label': 'Custom Date Range', 'value': 'custom'},
-                                            {'label': 'Data Release 1', 'value': 'release 1'},
-                                            {'label': 'Data Release 2', 'value': 'release 2'},
                                             {'label': 'Recent (15 days)', 'value': '15'},
                                             {'label': '1 Month (30 days)', 'value': '30'},
                                             {'label': '6 Months (180 days)', 'value': '180'},
@@ -685,6 +702,7 @@ def serve_layout():
         # raw_data_dictionary = serve_raw_data_store(data_url_root, DATA_PATH, DATA_SOURCE)
         # try: #load data from api
         app.logger.info('serving layout using datastore: {0}'.format(DATASTORE_URL))
+        release_dictionary =  generate_release_data_store(DATASTORE_URL)
         raw_data_dictionary = load_imaging_api(DATASTORE_URL)
         source ='api'
         # except:
@@ -695,6 +713,7 @@ def serve_layout():
         page_layout =  html.Div([
         # change to 'url' before deploy
                 # serve_data_stores('url'),
+                dcc.Store(id='release_data',  data = release_dictionary), #storage_type='session',
                 create_data_stores(source, raw_data_dictionary),
                 ], className='delay')
 
@@ -771,13 +790,18 @@ def update_date_range(customValue):
 @app.callback(
     Output('report_data', 'data'),
     Input('btn-selections','n_clicks'),
+    State('release_data', 'data'),
     State('session_data', 'data'),
     State("dropdown-date-range", "value"),
     State("date-picker-range", "start_date"),
     State("date-picker-range", "end_date")
 )
-def filtered(clicks, rawData, selection, startDate, endDate):
-    report_data = get_report_data_store(rawData, selection, startDate, endDate)
+def filtered(clicks, releaseData, rawData, selection, startDate, endDate):
+    releases =list(releaseData.keys())
+    if selection in releases:
+        report_data = releaseData[selection]['processed_data']
+    else:
+        report_data = get_report_data_store(rawData, selection, startDate, endDate)
     return report_data
 
 # Filter
