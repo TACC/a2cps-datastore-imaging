@@ -69,6 +69,7 @@ color_mapping_list = [(0.0, 'white'),(0.1, 'lightgrey'),(0.25, 'red'),(0.5, 'ora
 
 release1_ids = list(pd.read_csv('assets/DataFreeze_1_ids.csv').subject_id)
 release2_ids = list(pd.read_csv('assets/DataFreeze_2_ids.csv').subject_id)
+release3_ids = list(pd.read_csv('assets/DataFreeze_3_ids.csv').subject_id)
 
 def relative_date(nDays):
     today = datetime.today()
@@ -598,6 +599,7 @@ def create_content(source, data_date, sites):
                                         id='dropdown-date-range',
                                         options=[
                                             {'label': 'All records', 'value': 'all'},
+                                            {'label': 'Release 3.0', 'value': 'imaging_3_0'},
                                             {'label': 'Release 2.0', 'value': 'imaging_2_0'},
                                             {'label': 'Release 1.1', 'value': 'imaging_1_1'},
                                             {'label': 'Release 1.0', 'value': 'imaging_1_0'},
