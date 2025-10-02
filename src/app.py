@@ -405,6 +405,8 @@ def get_release_data_store(imaging_releases_json):
         
 
 def get_report_data_store(raw_data_store, selection = None, start_date: datetime = None, end_date = None):
+    app.logger.info("raw_data_store:")
+    app.logger.info(raw_data_store)
     imaging = pd.DataFrame.from_dict(raw_data_store['imaging'])
     qc = pd.DataFrame.from_dict(raw_data_store['qc'])
 
@@ -427,7 +429,8 @@ def get_report_data_store(raw_data_store, selection = None, start_date: datetime
             qc = filter_qc(qc, imaging)
 
     processed_data_dictionary = get_processed_data(imaging, qc)
-
+    app.logger.info('processed_data_dictionary:')
+    app.logger.info(processed_data_dictionary)
     return processed_data_dictionary
 
 def generate_missing_qc(imaging, qc):
@@ -799,11 +802,16 @@ def update_date_range(customValue):
     State("date-picker-range", "end_date")
 )
 def filtered(clicks, releaseData, rawData, selection, startDate, endDate):
+    app.logger.info("releaseData")
+    app.logger.info(releaseData)
+
     releases =list(releaseData.keys())
     if selection in releases:
         report_data = releaseData[selection]['processed_data']
     else:
         report_data = get_report_data_store(rawData, selection, startDate, endDate)
+    app.logger.info("report_data:")
+    app.logger.info(report_data)
     return report_data
 
 # Filter
