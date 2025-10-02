@@ -26,8 +26,11 @@ def get_api_data(api_address, ignore_cache=False):
             params = {'ignore_cache':True}
         response = requests.get(api_address, params=params, cookies=flask.request.cookies)
         response.raise_for_status()
+        logger.info("response:")
+        logger.info(response)
         return response.json()
     except Exception as e:
-        logger.warn(e)
+        logger.info("API error:")
+        logger.info(e)
         api_json['json'] = 'error: {}'.format(e)
         return api_json
