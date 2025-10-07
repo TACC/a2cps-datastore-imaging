@@ -20,14 +20,16 @@ class PortalAuthException(Exception):
 
 def get_api_data(api_address, ignore_cache=False):
     api_json = {}
+    logger.info("get_api_data:")
+    logger.info(api_json)
     try:
         params = {}
         if ignore_cache:
             params = {'ignore_cache':True}
         response = requests.get(api_address, params=params, cookies=flask.request.cookies)
-        response.raise_for_status()
         logger.info("response:")
         logger.info(response)
+        response.raise_for_status()
         return response.json()
     except Exception as e:
         logger.info("API error:")
