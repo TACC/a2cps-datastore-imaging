@@ -27,18 +27,19 @@ version_msg = 'Version Date: 04/22/24'
 LOCAL_DATA_DATE = '04/22/24'
 
 # Load local / asset data
-sites_filepath = os.path.join(DATA_PATH,'sites.csv')
+sites_filepath = os.path.join('assets','sites.csv')
 sites_info = pd.read_csv(sites_filepath)
 
 # Get rescinded patients from local file until subjects API is working
 rescinded_date = '07/11/2022'
-rescinded_filepath = os.path.join(DATA_PATH,'rescinded.csv')
+rescinded_filepath = os.path.join('assets','rescind.csv')
 rescinded = pd.read_csv(rescinded_filepath)
+print(rescinded)
 
 # Load initial data from local store
-initial_data_file_path = os.path.join(DATA_PATH,'initial_data.json')
-with open(initial_data_file_path) as json_file:
-    initial_data_dictionary = json.load(json_file)
+# initial_data_file_path = os.path.join(DATA_PATH,'initial_data.json')
+# with open(initial_data_file_path) as json_file:
+#     initial_data_dictionary = json.load(json_file)
 
 # ----------------------------------------------------------------------------
 # PROCESS DATA
@@ -66,10 +67,6 @@ color_mapping_list = [(0.0, 'white'),(0.1, 'lightgrey'),(0.25, 'red'),(0.5, 'ora
 # ---------------------------------
 #   Data ETL
 # ---------------------------------
-
-release1_ids = list(pd.read_csv('assets/DataFreeze_1_ids.csv').subject_id)
-release2_ids = list(pd.read_csv('assets/DataFreeze_2_ids.csv').subject_id)
-release3_ids = list(pd.read_csv('assets/DataFreeze_3_ids.csv').subject_id)
 
 def relative_date(nDays):
     today = datetime.today()
@@ -957,7 +954,7 @@ def update_discrepancies_section(data):
     # Rescinded patients in imaging
     cols = ['site', 'subject_id', 'visit',  'dicom',
     'bids', 'acquisition_week', 'Surgery Week']
-    rescinded_imaging = imaging[imaging['subject_id'].isin(list(rescinded['main_record_id']))][cols]
+    rescinded_imaging = imaging[imaging['subject_id'].isin(list(rescinded['id']))][cols]
     rescind_msg = 'Subjects who rescinded prior to ' + rescinded_date + ' but have records in the imaging file'
 
     # Get data for tables
