@@ -358,6 +358,7 @@ def load_tab_text():
         tab_text_path = "assets/tab_text.json"
         with open(tab_text_path) as f:
             tab_text = json.load(f)
+    print("load_tab_text")
     print(tab_text)
     return tab_text
 
@@ -563,6 +564,7 @@ def serve_raw_data_store(url_data_path, local_data_path, source):
     return raw_data_dictionary
 
 def create_data_stores(source, raw_data_dictionary):
+    app.logger.info('creating datastores')
     tab_text = load_tab_text()
     sites = raw_data_dictionary['sites']
     data_date = raw_data_dictionary['date']
