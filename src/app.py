@@ -371,6 +371,7 @@ def get_processed_data(imaging, qc):
     completions = get_completions(imaging)
     imaging_overview = roll_up(imaging)
     indicated_received = get_indicated_received(imaging)
+    print("indicated_received.columns")
     print(indicated_received.columns)
     ratings = indicated_received.merge(qc, how='outer', left_on = ['Site','Subject','Visit','Scan'], right_on=['site','sub','ses','scan']).fillna('N/A')
 
@@ -768,7 +769,7 @@ def update_date_range(customValue):
 
     if customValue and customValue.isnumeric():
         start_date = relative_date(int(customValue))
-    
+    print("start_date, end_date")
     print(start_date, end_date)
     report_dates = 'Date Range: ' + start_date.strftime("%m/%d/%Y") + ' to ' + end_date.strftime("%m/%d/%Y")
     return start_date, end_date, report_dates

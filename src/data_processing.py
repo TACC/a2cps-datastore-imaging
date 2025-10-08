@@ -205,7 +205,9 @@ def get_indicated_received(imaging_dataframe, validation_column = 'bids', valida
 # Imaging Overview
 # ----------------------------------------------------------------------------
 def roll_up(imaging):
+    print("imaging.columns")
     print(imaging.columns)
+    print("len(imaging)")
     print(len(imaging))
     cols = ['site','visit','subject_id']
     df = imaging[cols].copy()
