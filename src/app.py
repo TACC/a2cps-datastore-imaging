@@ -601,17 +601,17 @@ def create_content(source, data_date, sites):
                                     dcc.Dropdown(
                                         id='dropdown-date-range',
                                         options=[
-                                            {'label': 'All records', 'value': 'all'},
                                             {'label': 'Release 3.0', 'value': 'imaging_3_0'},
                                             {'label': 'Release 2.0', 'value': 'imaging_2_0'},
                                             {'label': 'Release 1.1', 'value': 'imaging_1_1'},
                                             {'label': 'Release 1.0', 'value': 'imaging_1_0'},
-                                            {'label': 'Custom Date Range', 'value': 'custom'},
                                             {'label': 'Recent (15 days)', 'value': '15'},
                                             {'label': '1 Month (30 days)', 'value': '30'},
                                             {'label': '6 Months (180 days)', 'value': '180'},
+                                            {'label': 'Custom Date Range', 'value': 'custom'},
+                                            {'label': 'All records', 'value': 'all'},
                                         ],
-                                        value='all'
+                                        value='imaging_3_0'
                                     ),
                                     html.Div(id='report-dates'),
                                     html.Div([
