@@ -24,8 +24,6 @@ def get_api_data(api_address, ignore_cache=False):
         if ignore_cache:
             params = {'ignore_cache':True}
         response = requests.get(api_address, params=params, cookies=flask.request.cookies)
-        logger.info("response:")
-        logger.info(response)
         response.raise_for_status()
         return response.json()
     except Exception as e:
