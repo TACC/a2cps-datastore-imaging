@@ -1,5 +1,4 @@
 import os
-import json
 import flask
 import requests
 import logging
@@ -20,8 +19,6 @@ class PortalAuthException(Exception):
 
 def get_api_data(api_address, ignore_cache=False):
     api_json = {}
-    logger.info("get_api_data:")
-    logger.info(api_json)
     try:
         params = {}
         if ignore_cache:

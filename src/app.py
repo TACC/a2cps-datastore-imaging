@@ -935,8 +935,6 @@ no_data_div = html.Div(
     Input('report_data', 'data')
 )
 def update_overview_section(data):
-    app.logger.info("update_overview_section")
-    app.logger.info(data)
     if data['imaging_length'] > 0:
         imaging_overview = pd.DataFrame.from_dict(data['imaging_overview'])
         return create_image_overview(imaging_overview)
