@@ -18,3 +18,6 @@ Overdue:
 - Use 'surgery_week' column.
 - For Visit 1: overdue if the surgery week is earlier than today
 - For Visit 3: overdue if today is >90 days after the surgery_week date
+
+### Data Releases
+Imaging Release reports are related to 'data freezes' for the A2CPS project on certain dates for subjects at that time.  This release data is pre-processed and stored.
